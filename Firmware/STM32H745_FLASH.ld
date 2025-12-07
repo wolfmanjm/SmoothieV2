@@ -239,6 +239,10 @@ SECTIONS
     PROVIDE_HIDDEN (__ethernet_data_end = .);
   } >SRAM_2
 
+  .sram_4_shared (NOLOAD) :
+  {
+    KEEP (*(.sram_4_shared*))
+  } >SRAM_4
 
   /* to take md5sum of the flash .bin */
   _image_start = LOADADDR(.isr_vector);

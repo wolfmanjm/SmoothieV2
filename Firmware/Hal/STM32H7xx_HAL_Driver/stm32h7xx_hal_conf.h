@@ -53,7 +53,7 @@
 /* #define HAL_HASH_MODULE_ENABLED */
 /* #define HAL_HCD_MODULE_ENABLED */
 /* #define HAL_HRTIM_MODULE_ENABLED */
-/* #define HAL_HSEM_MODULE_ENABLED */
+#define HAL_HSEM_MODULE_ENABLED
 #define HAL_I2C_MODULE_ENABLED
 /* #define HAL_I2S_MODULE_ENABLED */
 /* #define HAL_IRDA_MODULE_ENABLED */
@@ -142,6 +142,7 @@
 
 
 
+
 /* ########################## Oscillator Values adaptation ####################*/
 /**
   * @brief Adjust the value of External High Speed oscillator (HSE) used in your application.
@@ -212,6 +213,8 @@
 #define  TICK_INT_PRIORITY            ((uint32_t)4) /*!< tick interrupt priority */
 #define  USE_RTOS                     0
 #define  USE_SD_TRANSCEIVER           0U               /*!< use uSD Transceiver */
+#define  USE_FLASH_ECC                0
+#define  USE_MULTI_CORE_SHARED_CODE   0
 
 /* ########################### Ethernet Configuration ######################### */
 /* ########################### Ethernet Configuration ######################### */
