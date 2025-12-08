@@ -761,12 +761,22 @@ bool CommandShell::modules_cmd(std::string& params, OutputStream& os)
     return true;
 }
 
+static const std::vector<std::string> get_sub_commands= {"position", "wcs", "state", "status", "temperature", "volts", "fk", "ik"};
 bool CommandShell::get_cmd(std::string& params, OutputStream& os)
 {
     HELP("get pos|wcs|state|status|temp|volts|fk|ik")
     std::string what = stringutils::shift_parameter( params );
+    what = stringutils::match_command(get_sub_commands, what);
+    if(what == "?") {
+        os.printf("get subcommand is not unique, use one of pos|wcs|state|status|temp|volts|fk|ik\n");
+        return true;
+    }else if(what.empty()) {
+        os.printf("unknown get subcommand, use one of pos|wcs|state|status|temp|volts|fk|ik\n");
+        return true;
+    }
+
     bool handled = true;
-    if (what == "temp") {
+    if (what == "temperature") {
         std::string type = stringutils::shift_parameter( params );
         if(type.empty()) {
             // scan all temperature controls
@@ -793,7 +803,7 @@ bool CommandShell::get_cmd(std::string& params, OutputStream& os)
         } else {
             Module *m = Module::lookup("temperature control", type.c_str());
             if(m == nullptr) {
-                os.printf("%s is not a known temperature control", type.c_str());
+                os.printf("%s is not a known temperature control\n", type.c_str());
 
             } else {
                 TemperatureControl::pad_temperature_t temp;
@@ -848,7 +858,7 @@ bool CommandShell::get_cmd(std::string& params, OutputStream& os)
             Robot::getInstance()->pop_state();
         }
 
-    } else if (what == "pos") {
+    } else if (what == "position") {
         // convenience to call all the various M114 variants, shows ABC axis where relevant
         std::string buf;
         Robot::getInstance()->print_position(0, buf); os.printf("last %s\n", buf.c_str()); buf.clear();
@@ -910,10 +920,6 @@ bool CommandShell::get_cmd(std::string& params, OutputStream& os)
                 os.printf("%s: %f v\n", type.c_str(), v);
             }
         }
-
-    } else {
-
-        handled = false;
     }
 
     return handled;
@@ -1030,9 +1036,12 @@ bool CommandShell::grblDP_cmd(std::string& params, OutputStream& os)
 // runs several types of test on the mechanisms
 // TODO this will block the command thread, and queries will stop,
 // may want to run the long running commands in a thread
+
+static const std::vector<std::string> test_sub_commands= {"jog", "circle", "square", "raw", "acc", "pulse"};
+
 bool CommandShell::test_cmd(std::string& params, OutputStream& os)
 {
-    HELP("test [jog|circle|square|raw|pulse]");
+    HELP("test [jog|circle|square|raw|acc|pulse]");
 
     if(Module::is_halted()) {
         os.set_no_response(true);
@@ -1042,6 +1051,17 @@ bool CommandShell::test_cmd(std::string& params, OutputStream& os)
 
     AutoPushPop app; // this will save the state and restore it on exit
     std::string what = stringutils::shift_parameter( params );
+    what = stringutils::match_command(test_sub_commands, what);
+    if(what == "?" || what.empty()) {
+        os.printf("test subcommands:\n test jog [-d] axis distance iterations [feedrate]\n");
+        os.printf(" test square size iterations [feedrate]\n");
+        os.printf(" test circle radius iterations [feedrate]\n");
+        os.printf(" test raw axis steps steps/sec\n");
+        os.printf(" test acc axis units units/sec\n");
+        os.printf(" test pulse axis iterations\n");
+        return true;
+    }
+
     OutputStream nullos;
     bool disas = false;
     if (what == "jog") {
@@ -1227,12 +1247,7 @@ bool CommandShell::test_cmd(std::string& params, OutputStream& os)
         Robot::getInstance()->reset_position_from_current_actuator_position();
 
     } else {
-        os.printf("usage:\n test jog axis distance iterations [feedrate]\n");
-        os.printf(" test square size iterations [feedrate]\n");
-        os.printf(" test circle radius iterations [feedrate]\n");
-        os.printf(" test raw axis steps steps/sec\n");
-        os.printf(" test acc axis units units/sec\n");
-        os.printf(" test pulse axis iterations\n");
+        os.printf("Unknown test subcommand: %s\n", what.c_str());
     }
 
     // wait for the test to complete
