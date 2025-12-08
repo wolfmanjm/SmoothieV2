@@ -67,27 +67,34 @@ bool ForthComms::configure(ConfigReader& cr)
 // fth flash
 // fth terminal
 // fth reset
+
 #define FTH_COMMANDS "fth [flash fn] | [terminal] | [run word {params...}] | [load filename] | [reset]"
+
+static const std::vector<std::string> sub_commands= {"flash", "terminal", "run", "load", "reset"};
+
 bool ForthComms::fth_command( std::string& params, OutputStream& os )
 {
     HELP(FTH_COMMANDS)
 
     std::string subcmd = stringutils::shift_parameter(params);
-    if(subcmd.empty()) {
-        os.printf("Usage: %s\n", FTH_COMMANDS);
+    std::string m = stringutils::match_command(sub_commands, subcmd);
+    if(m.empty()) {
+        os.printf("unknown subcommand. Usage: %s\n", FTH_COMMANDS);
+        return true;
+    }else if(m == "?") {
+        os.printf("subcommand is not unique. Usage: %s\n", FTH_COMMANDS);
         return true;
     }
 
-    // TODO keep a list pf sub commands and match on minimum unique characters (eg fth f for fth flash)
-    if(subcmd == "flash") {
+    if(m == "flash") {
         return flash(params, os);
     }
 
-    if(subcmd == "terminal") {
+    if(m == "terminal") {
         return terminal(params, os);
     }
 
-    os.printf("unknown subcommand: %s\n", subcmd.c_str());
+    os.printf("unknown subcommand: %s\n", m.c_str());
 
     return true;
 }
@@ -186,7 +193,7 @@ static void terminal_thread(void *params)
     // stop input capture
     os->fast_capture_fnc = nullptr;
 
-    os->printf("Exiting the Forth terminal\n");
+    os->printf("Exiting the Forth terminal\nok\n");
 
     printf("DEBUG: ForthComms: Terminal thread exiting\n");
 
@@ -236,6 +243,7 @@ bool ForthComms::terminal( std::string& params, OutputStream& os )
     }
 
     os.printf("This terminal will talk directly to the forth kernel. Type control-D to exit back to smoothie\n");
+    os.set_no_response();
     return true;
 }
 

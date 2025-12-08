@@ -130,4 +130,27 @@ std::string get_command_arguments(std::string& line )
     line = line.substr( pos + 1);
     return t.substr(0, pos);
 }
+
+// return command match using minimal unique match, or "" for not found or "?" for not unique
+std::string match_command(const std::vector<std::string>& commands, const std::string& input)
+{
+    std::vector<std::string> matches;
+
+    // Collect all commands that start with the input
+    for (const auto& cmd : commands) {
+        if (cmd.compare(0, input.size(), input) == 0) {
+            matches.push_back(cmd);
+        }
+    }
+
+    if (matches.empty()) {
+        return ""; // no match
+    } else if (matches.size() == 1) {
+        return matches[0]; // unique match
+    } else {
+        return "?"; // ambiguous
+    }
+}
+
+
 }

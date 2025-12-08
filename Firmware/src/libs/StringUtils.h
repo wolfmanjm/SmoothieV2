@@ -11,4 +11,5 @@ namespace stringutils {
     std::string toUpper(std::string str);
     std::string trim(const std::string &s);
     std::string get_command_arguments(std::string& line);
+    std::string match_command(const std::vector<std::string>& commands, const std::string& input);
 }
