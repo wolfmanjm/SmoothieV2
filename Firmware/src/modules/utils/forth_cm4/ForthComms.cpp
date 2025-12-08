@@ -124,6 +124,7 @@ static void start_CM4()
 
 // This is a task
 // NOTE It is possible the os will go away if the USB detaches. Need to handle that (like the network shell).
+// This thread handles the data coming in from the forth process and displays it to the connected port (only USB at this time)
 static void terminal_thread(void *params)
 {
     struct task_params_struct *p = (struct task_params_struct*)params;
@@ -209,6 +210,11 @@ bool ForthComms::terminal( std::string& params, OutputStream& os )
     // this terminal runs in a thread so as not to stall the comms thread or the rest of smoothie
     if(terminal_connected) {
         os.printf("Forth terminal is already connected\n");
+        return true;
+    }
+
+    if(!os.is_usb()) {
+        os.printf("The Forth terminal can only be connected to via a USB connection\n");
         return true;
     }
 
