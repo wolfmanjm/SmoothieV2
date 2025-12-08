@@ -39,6 +39,7 @@ bool ForthComms::create(ConfigReader& cr)
 
 ForthComms::ForthComms() : Module("forthcomms")
 {
+    terminal_connected= false;
 }
 
 bool ForthComms::configure(ConfigReader& cr)
@@ -104,23 +105,21 @@ static uint8_t forth_comms_buffer[256*2+4] __attribute__((section (".sram_4_shar
 static struct task_params_struct {
     bool done;
     OutputStream *os;
-    StreamBufferHandle_t sb;
 } task_params;
 
 static void start_CM4()
 {
-    if(__HAL_PWR_GET_FLAG(PWR_FLAG_SB_D1) == RESET) {
-        printf("INFO: ForthComms: CM4 was not started...\n");
-
+    // not sure why this does not work so presume it aways needs starting, does no harm if it is already running
+//    if(!__HAL_PWR_GET_FLAG(PWR_FLAG2_SB_D2)) {
+        // printf("INFO: ForthComms: CM4 was not started...\n");
         HAL_SYSCFG_CM4BootAddConfig(SYSCFG_BOOT_ADDR0, 0x081C0000); /*0x081C0000*/
-        printf("INFO: ForthComms: Set CM4 boot address to %08X\n",  0x081C0000);
-
+        // printf("INFO: ForthComms: Set CM4 boot address to %08X\n",  0x081C0000);
         /* Enable CPU2 (Cortex-M4) boot regardless of option byte values */
         HAL_RCCEx_EnableBootCore(RCC_BOOT_C2);
-        printf("INFO: ForthComms: Told CM4 to boot\n");
-    } else {
-         printf("INFO: ForthComms: CM4 was already started\n");
-    }
+        // printf("INFO: ForthComms: Told CM4 to boot\n");
+    // } else {
+    //      printf("INFO: ForthComms: CM4 was already started\n");
+    // }
 }
 
 // This is a task
@@ -159,80 +158,69 @@ static void terminal_thread(void *params)
             addr[3] = rx_w;
         }
 
-        // produce
-        uint8_t tx_w = addr[0];
-        uint8_t tx_r = addr[1];
-        uint8_t tx_f = 255 - (tx_w - tx_r);
-        size_t len= 0;
-
-        if(tx_f > 0) {
-            uint8_t rbuf[256];
-            len = xStreamBufferReceive(p->sb, (void *)rbuf, sizeof(rbuf), 0);
-            if(len > 0) {
-                uint8_t count= 0;
-                for (size_t i = 0; i < len; ++i) {
-                    if(rbuf[i] == 4) {
-                        // halt character ^D
-                        p->done= true;
-                        break;
-                    }
-                    uint8_t off = tx_w + i;
-                    addr[4 + off] = rbuf[i];
-                    ++count;
-                    if(--tx_f == 0) break;
-                }
-                addr[0] = tx_w + count;
-            }
-        }
-
-        if(!p->done && len == 0 && rx_u == 0) {
+        if(!p->done && rx_u == 0) {
             vTaskDelay(0); // sleep and yield
         }
     }
 
-    // stop input capture
-    os->fast_capture_fnc = nullptr;
-
     os->printf("Exiting the Forth terminal\nok\n");
 
     printf("DEBUG: ForthComms: Terminal thread exiting\n");
-
-    vStreamBufferDelete(p->sb);
     vTaskDelete(NULL);
+}
+
+bool ForthComms::produce(char *rbuf, size_t len)
+{
+    uint8_t *addr = forth_comms_buffer;
+    while(len > 0) {
+        uint8_t tx_w = addr[0];
+        uint8_t tx_r = addr[1];
+        uint8_t tx_f = 255 - (tx_w - tx_r);
+        uint8_t cnt = 0;
+        for (size_t i = 0; i < tx_f; ++i) {
+            if(rbuf[i] == 4) {
+                // halt character ^D
+                task_params.done= true;
+                terminal_connected= false;
+                return false;
+            }
+            uint8_t off = tx_w + i;
+            addr[4 + off] = rbuf[cnt];
+            ++cnt;
+            if(--len == 0) break;
+        }
+        if(cnt > 0) {
+            addr[0] = tx_w + cnt;
+        }
+        if(len > 0) {
+            // still have data to pass onto forth, so wait a while
+            vTaskDelay(pdMS_TO_TICKS(10)); // sleep and yield
+        }
+    }
+    return true;
 }
 
 // TODO add command line editing and send line instead of character at a time
 // also stop character echo
 bool ForthComms::terminal( std::string& params, OutputStream& os )
 {
+    os.set_no_response();
+
     // this terminal runs in a thread so as not to stall the comms thread or the rest of smoothie
-
-    start_CM4(); // make sure CM4 is started
-
-    // create a stream buffer to send keyboard input to the task running the comms with the forth kernel
-    StreamBufferHandle_t xStreamBuffer = xStreamBufferCreate( 256, 1 );
-    if( xStreamBuffer == NULL ) {
-        os.printf("ERROR: xStreamBufferCreate failed\n");
+    if(terminal_connected) {
+        os.printf("Forth terminal is already connected\n");
         return true;
     }
 
-    // lambda that captures incoming keystrokes or data and sends them to the task talking to the forth kernel
-    os.fast_capture_fnc = [xStreamBuffer, &os](char *buf, size_t len) {
-        if(task_params.done) return false;
-        // note this is being run in the Comms thread, so must not block
-        size_t cnt= xStreamBufferSend(xStreamBuffer, buf, len, 0);
-        if((size_t)cnt < len) {
-            // TODO
-            // we need to store what we have not sent and send it next time
-            os.printf("WARNING: unable to send all the data: %lu\n", cnt);
-        }
+    start_CM4(); // make sure CM4 is started
 
-        return task_params.done ? false : true;
-    };
+    // function callback that captures incoming keystrokes or data and sends them to the task talking to the forth kernel
+    using std::placeholders::_1;
+    using std::placeholders::_2;
+    os.fast_capture_fnc = std::bind(&ForthComms::produce, this, _1, _2);
 
     task_params.done = false;
     task_params.os = &os;
-    task_params.sb = xStreamBuffer;
 
     // start terminal thread
     // Note this is lower priority than command thread and the comms thread
@@ -243,7 +231,7 @@ bool ForthComms::terminal( std::string& params, OutputStream& os )
     }
 
     os.printf("This terminal will talk directly to the forth kernel. Type control-D to exit back to smoothie\n");
-    os.set_no_response();
+    terminal_connected= true;
     return true;
 }
 

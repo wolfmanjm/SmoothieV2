@@ -400,7 +400,7 @@ static void usb_comms(void *param)
 
         os->printf("Welcome to Smoothie\nok\n");
 
-        // now read lines and dispatch them
+        // now read lines and dispatch them unless a callback is set in which case that gets any recieved data
         char line[MAX_LINE_LENGTH];
         size_t cnt = 0;
         bool discard = false;
@@ -414,6 +414,8 @@ static void usb_comms(void *param)
                     os->set_closed(false);
                 }
                 if(os->fast_capture_fnc) {
+                    // with this callback set we just pass the buffer of data to the callback, we do not process it in any way
+                    // used by ymodem download and forth terminal
                     if(!os->fast_capture_fnc(usb_rx_buf, n)) {
                         os->fast_capture_fnc = nullptr; // we are done ok
                     }

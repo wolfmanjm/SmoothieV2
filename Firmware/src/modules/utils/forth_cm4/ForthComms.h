@@ -21,4 +21,7 @@ class ForthComms : public Module {
         bool fth_command( std::string& parameters, OutputStream& os );
         bool flash( std::string& params, OutputStream& os );
         bool terminal( std::string& params, OutputStream& os );
+        bool produce(char *rbuf, size_t len);
+
+        bool terminal_connected;
 };
