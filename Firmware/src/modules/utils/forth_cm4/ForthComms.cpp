@@ -178,8 +178,8 @@ static void terminal_thread(void *params)
             }
         }
 
-        if(!p->done && len == 0) {
-            vTaskDelay(pdMS_TO_TICKS(10)); // sleep and yield
+        if(!p->done && len == 0 && rx_u == 0) {
+            vTaskDelay(0); // sleep and yield
         }
     }
 
@@ -195,6 +195,7 @@ static void terminal_thread(void *params)
 }
 
 // TODO add command line editing and send line instead of character at a time
+// also stop character echo
 bool ForthComms::terminal( std::string& params, OutputStream& os )
 {
     // this terminal runs in a thread so as not to stall the comms thread or the rest of smoothie
