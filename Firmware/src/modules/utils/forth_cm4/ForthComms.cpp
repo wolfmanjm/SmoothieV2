@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <tuple>
+#include <sys/stat.h>
 
 #define enable_key "enable"
 
@@ -254,13 +255,21 @@ bool ForthComms::flash( std::string& params, OutputStream& os )
     // Get filename which is the entire parameter line
     std::string filename = params;
 
+    // check size before we flash it
+    struct stat statbuf;
+    stat(filename.c_str(), &statbuf);
+    if(statbuf.st_size > 128*1024) {
+         os.printf("File is too big %lu > 128KB\n", statbuf.st_size);
+         return true;
+    }
+
     FILE *fp = fopen( filename.c_str(), "r");
     if(fp == nullptr) {
         os.printf("File not found: %s\n", filename.c_str());
         return true;
     }
 
-    os.printf("Flashing Forth binary %s\n", filename.c_str());
+    os.printf("Flashing Forth binary %s, size: %lu\n", filename.c_str(), statbuf.st_size);
     if(do_flash(fp) == 0) {
         os.printf("Flashing failed\n");
     }else{
