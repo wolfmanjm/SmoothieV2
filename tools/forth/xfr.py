@@ -36,6 +36,7 @@ parser.add_argument("-c", "--skip-comments", action="store_true", default=False,
 parser.add_argument("-e", "--skip-empty-lines", action="store_true", default=False, help="skip sending empty lines")
 parser.add_argument("-I", "--include-path", metavar="DIR", action="append", default=["."], help="append directory to include paths")
 parser.add_argument("-s", "--print-statistics", action="store_true", default=False, help="print transfer statistics")
+parser.add_argument("-x", "--ignore-echoback", action="store_true", default=False, help="if line edit is on discard echo")
 args = parser.parse_args()
 
 included = []
@@ -80,7 +81,12 @@ def xfr(parent_fname, parent_lineno, fname):
                 sys.stdout.write(line)
                 n_bytes_sent += len(line)
                 response = sys.stdin.readline()
+
+                if args.ignore_echoback:
+                    response = sys.stdin.readline()
+
                 sys.stderr.write(response)
+
                 if not (response.endswith("ok.\n") or response.endswith("ok'\x1B[0m\n") or response.endswith("ok.\x1B[0m\n")):
                     sys.stderr.write(f"*** {fname}({lineno}): compilation error ***\n")
                     sys.exit(1)

@@ -1,0 +1,6 @@
+# using picocom when line editing is turned OFF on the second USB console
+# control-A control-S starts download using xfr.py
+picocom /dev/ttyACM1 --imap lfcrlf,crcrlf --omap delbs,crlf --send-cmd "xfr.py -c -e -s"
+
+# using picocom when line editing is turned ON on the second USB console
+#picocom /dev/ttyACM1 --imap lfcrlf,crcrlf --omap delbs,crlf --send-cmd "xfr.py -c -e -s -x"
