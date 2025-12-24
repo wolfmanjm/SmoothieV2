@@ -1,1 +1,1 @@
-e4thcom -t mecrisp-st -d ttyACM1
+e4thcom-bins/e4thcom -t mecrisp-st -d ttyACM1

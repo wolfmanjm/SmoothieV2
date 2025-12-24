@@ -1,0 +1,109 @@
+e4thcom: 0.8.5 \ mecrisp-st.efc : plug-in for mecrisp stellaris        MM-151011
+
+\ Tested on a Stellaris LaunchPad (lm4f120) and on a Tiva TM4C1294 Connected
+\ LaunchPad 
+
+hex FFFFFFFF e4thcom terminal max-u !  \ 32 Bit Target
+
+<brown
+." * Loading plug-in for Mecrisp-Stellaris (mecrisp-st.efc)"
+normal>
+cr
+."    Use the " <bright ." TAB " normal> ." key to cancel an upload process."
+
+e4thcom-0.8.5 definitions decimal
+
+here 1 c, ^NL c, 0 c, constant $^NL
+
+:noname ( oid -- flag )
+   \ Wait while the target evalutes a line of uploaded source code. Return 
+   \ a true flag on error, a false flag otherwise.
+     >self white bright letters  self rx-buf erase
+     1000 self timeout ! 
+     begin
+       key? if \ send input to the target
+         key dup 2 ( ^B ) = if drop self break-msg true exit then self tx.0
+       then
+       self rx
+       if \ no char received
+          drop self timeout ?
+          if \ timeout, check if an error message was received
+             @voc $^NL count 0 self rx-buf compare$ 0= if true exit then
+             250 self timeout !
+          then
+       else \ a char received
+         ( c ) dup self rx-buf append  dup self ?emit
+         ^NL = if \ end of line, check for " ok." or " not found." message
+            s"  ok." -1 self rx-buf compare$ 0= if false exit then
+            \ no ok received, check for not found message
+            s"  not found." -1 self rx-buf compare$ 0= if true exit then
+         then
+         250 self timeout !
+       then
+     again ;
+
+terminal plug-in !
+terminal upper-case off
+terminal $prefix on
+s" mcu:target:lib" terminal path !
+warning off
+
+\ Last Revision: MM-210118 0.8.4 --> 0.8.5
+\                MM-201003 0.8.2 --> 0.8.4
+\                MM-200920 MFP 4.0.1
+\                MM-200315 2.2MK2c3.1  @self --> @class
+\                MM-190601 2.2MK2c2
+\                MM-180825 0.7.0
+\\ ============================================================================
+
+mecrisp protocol details :
+
+_ = bl   ^0A = ^NL   ^0D = ^CR
+ 
+
+[Enter]           __ok.^0A
+
+X[Enter]          _X_is_unknown.^0A
+
+'_base[Enter]     __ok.^0A
+
+'_X[Enter]        _X_not_found.^0A
+
+:_Y[Enter]        __ok.^0A
+
+.s[Enter]         __ok.^0A
+
+;[Enter]          __ok.^0A
+
+:_Y[Enter]        _Redefine_Y.^0A_ok.^0A
+
+X[Enter]          _X_is_unknown.^0A
+
+:_Y_.s_;[Enter]   _Redefine_Y.^0A_ok.^0A
+
+drop[Enter]       __Stack_underflow^0A
+
+cr[Enter]         _^0A_ok.^0A
+
+:_test_.s_;[Enter]  __Ram_full^0A
+
+
+(Some) Error messages:
+
+Cannot define variables in Flash
+Create needs name !
+Flash full
+is compile-only
+is unknown.
+Jump too far
+not found.
+Overflow in f* !
+Ram full
+Redefine
+Sprungdistanz zu groß.
+Stack not balanced. 
+Stack overflow
+Stack underflow
+Structures don't match
+Variables collide with dictionary
+
