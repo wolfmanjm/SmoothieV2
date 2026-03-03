@@ -5,7 +5,7 @@ while smoothie runs on the M7 core.
 
 This is a full blown forth kernel which can access most peripherals on the
 board, and can also be used for scripting things like probing or canned
-moves. It can do this by telling smoothie what it wants to do by queing gcode
+moves. It can do this by telling smoothie what it wants to do by queuing gcode
 commands like a shell would do.
 
 To get started you need to copy the forth-cm4.bin found in the tools directory
@@ -23,7 +23,7 @@ You then need to flash the forth kernel one time by typing `fth flash forth-cm4.
 
 Once the forth is flashed, you can access it by connecting to smoothie over a
 USB port (it is recommended you enable the second USB serial port and use
-that). Then you can start up a terminal session that talks diectly to the
+that). Then you can start up a terminal session that talks directly to the
 forth kernel by using the command `fth terminal`.
 
 This will then be talking to the forth kernel and not smoothie. You can return
@@ -34,12 +34,15 @@ docs, link above). NOTE you will need to turn local echo off in your terminal
 when talking to forth.(EG in picocom Control-A Control-C toggles local
 echo).
 
-For development I recommend using a front end to talk to forth like e4thcom
+For development I recommend using a front end to talk to forth like
+(forthcon)[https://github.com/wolfmanjm/forth-console]
 which has line editing, command history, and loading forth files.
+
 Alternatively you can use picocom and lose the line editing but you can still
 load forth file using the xfer.py utility found in the tools/forth directory.
-launch script for picocom are also found there as well as a 64bit linux
-binary of e4thcom. To do this you would connect to say /dev/ttyACM1 using
-picocom and get into the forth terminal with the `fth t` command. then exit
-picocom and run e4thcom to connect to /dev/ttyACM1.
+The launch script for picocom are also found there.
+To do this you would connect to say /dev/ttyACM1 using
+picocom and get into the forth terminal with the `fth t` command, then exit
+picocom and run forthcon to connect to /dev/ttyACM1. `fortcon -d /dev/ttyACM1`
+
 
