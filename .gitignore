@@ -3,3 +3,6 @@ smoothiev2_Prime
 flashloader_Prime
 smoothiev2_Devebox
 DFUBootloader/Build/
+*.sublime-project
+*.sublime-workspace
+.todo

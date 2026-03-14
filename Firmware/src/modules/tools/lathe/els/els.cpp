@@ -86,7 +86,7 @@ void ELS::after_load()
 
 void ELS::update_rpm()
 {
-    if(tm == nullptr || !started) return;
+    if(tm == nullptr || !started || enter_value) return;
 
     // update display once per second
     if(tm->lock()) {
@@ -107,6 +107,9 @@ void ELS::update_rpm()
 void ELS::check_buttons()
 {
     static uint8_t last_buttons= 0;
+    static std::string edstr;
+    static int edpos= 0;
+    static int edmul[4]= {1, 10, 100, 1000};
 
     if(tm == nullptr || !started) return;
 
@@ -117,14 +120,14 @@ void ELS::check_buttons()
 
     /* buttons contains a byte with values of button s8s7s6s5s4s3s2s1
      HEX  :  Switch no : Binary
-     0x01 : S1 Pressed  0000 0001
-     0x02 : S2 Pressed  0000 0010
-     0x04 : S3 Pressed  0000 0100
-     0x08 : S4 Pressed  0000 1000
-     0x10 : S5 Pressed  0001 0000
-     0x20 : S6 Pressed  0010 0000
+     0x01 : S1 Pressed  0000 0001 - Stop operation
+     0x02 : S2 Pressed  0000 0010 - start G33 operation
+     0x04 : S3 Pressed  0000 0100 - start G1 operation
+     0x08 : S4 Pressed  0000 1000 - edit number
+     0x10 : S5 Pressed  0001 0000 - next digit
+     0x20 : S6 Pressed  0010 0000 - Dec digit
      0x40 : S7 Pressed  0100 0000
-     0x80 : S8 Pressed  1000 0000
+     0x80 : S8 Pressed  1000 0000 - Inc digit
     */
 
     static OutputStream os(&std::cout); // NULL output stream, but we need to keep some state between calls
@@ -145,25 +148,63 @@ void ELS::check_buttons()
         }
     }
 
+    // digit edit select
+    if((buttons & 0x08) && !(last_buttons & 0x08)) {
+        if(!enter_value) {
+            var1 = 0;
+            edstr= "EDIT0000.";
+            enter_value = true;
+        } else {
+            if(++edpos == 4) {
+                edstr= "";
+                edpos = 0;
+                enter_value= false;
+
+            } else {
+                edstr.insert((8-edpos), ".");
+            }
+        }
+        if(tm->lock()) {
+            tm->displayText(edstr.c_str());
+            tm->unlock();
+        }
+    }
+
     // up/down buttons
     if((buttons & 0x80) && !(last_buttons & 0x80)) {
-        if(++var1 > 9999) {
-            var1= 9999;
-        }else{
-            if(tm->lock()) {
-                tm->DisplayDecNumNibble((int)roundf(rpm), var1, false, TMAlignTextRight);
-                tm->unlock();
+        if(enter_value) {
+            var1 += edmul[edpos];
+            char buf[10];
+            sprintf(buf, "EDIT%04d", var1);
+            edstr= buf;
+            edstr.insert((8-edpos), ".");
+        } else {
+            if(++var1 > 9999) {
+                var1= 9999;
+            }else{
+                if(tm->lock()) {
+                    tm->DisplayDecNumNibble((int)roundf(rpm), var1, false, TMAlignTextRight);
+                    tm->unlock();
+                }
             }
         }
     }
 
     if((buttons & 0x20) && !(last_buttons & 0x20)) {
-        if(--var1 < 0) {
-            var1= 0;
-        }else{
-            if(tm->lock()) {
-                tm->DisplayDecNumNibble((int)roundf(rpm), var1, false, TMAlignTextRight);
-                tm->unlock();
+       if(enter_value) {
+            var1 -= edmul[edpos];
+            char buf[10];
+            sprintf(buf, "EDIT%04d", var1);
+            edstr= buf;
+            edstr.insert((8-edpos), ".");
+        } else {
+            if(--var1 < 0) {
+                var1= 0;
+            }else{
+                if(tm->lock()) {
+                    tm->DisplayDecNumNibble((int)roundf(rpm), var1, false, TMAlignTextRight);
+                    tm->unlock();
+                }
             }
         }
     }

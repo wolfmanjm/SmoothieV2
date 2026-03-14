@@ -23,4 +23,5 @@ class ELS : public Module {
         TM1638 *tm{nullptr};
         uint8_t buttons{0};
         bool started{false};
+        bool enter_value{false};
 };
