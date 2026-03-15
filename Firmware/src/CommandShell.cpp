@@ -21,6 +21,8 @@
 #include "Consoles.h"
 #include "BaseSolution.h"
 #include "Uart.h"
+#include "LineEditor.h"
+#include "MessageQueue.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -29,8 +31,8 @@
 #include "semphr.h"
 
 #include <functional>
-#include <set>
 #include <cmath>
+#include <map>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -97,6 +99,8 @@ bool CommandShell::initialize()
     THEDISPATCHER->add_handler( "flash", std::bind( &CommandShell::flash_cmd, this, _1, _2) );
     THEDISPATCHER->add_handler( "msc", std::bind( &CommandShell::msc_cmd, this, _1, _2) );
     THEDISPATCHER->add_handler( "echo", std::bind( &CommandShell::echo_cmd, this, _1, _2) );
+    THEDISPATCHER->add_handler( "o", std::bind( &CommandShell::subroutines_cmd, this, _1, _2) );
+    THEDISPATCHER->add_handler( "le", std::bind( &CommandShell::line_editor_cmd, this, _1, _2) );
 
     THEDISPATCHER->add_handler(Dispatcher::MCODE_HANDLER, 20, std::bind(&CommandShell::m20_cmd, this, _1, _2));
     THEDISPATCHER->add_handler(Dispatcher::MCODE_HANDLER, 115, std::bind(&CommandShell::m115_cmd, this, _1, _2));
@@ -1738,6 +1742,11 @@ bool CommandShell::ry_cmd(std::string& params, OutputStream& os)
         return true;
     }
 
+    if(os.capture_fnc != nullptr) {
+        os.puts("Something is already capturing input, exiting ymodem\n");
+        return true;
+    }
+
     if(params.empty()) {
         os.printf("start ymodem transfer\n");
         vTaskDelay(pdMS_TO_TICKS(2000));
@@ -2147,6 +2156,11 @@ bool CommandShell::edit_cmd(std::string& params, OutputStream& os)
         return true;
     }
 
+    if(os.capture_fnc != nullptr) {
+        os.puts("Something is already capturing input exiting ed\n");
+        return true;
+    }
+
     std::string infile = stringutils::shift_parameter(params);
     std::string outfile = stringutils::shift_parameter(params);
 
@@ -2169,6 +2183,143 @@ bool CommandShell::edit_cmd(std::string& params, OutputStream& os)
         remove(outfile.c_str());
         os.printf("edit failed\n");
     }
+
+    return true;
+}
+
+// o like subroutines
+// main diiference is only sub, endsub and call are supported
+// no parameters yet
+// there is a space between the o and the name
+// the name can be alphanumeric
+
+bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
+{
+    HELP("o 100 sub - define a subroutine, o 100 endsub - ends it, o 100 call - executes it");
+
+    std::string cmd = stringutils::shift_parameter(params);
+    if(cmd.empty()) {
+        os.printf("FAIL - need a number or name\n");
+        return true;
+    }
+
+    std::string name = cmd;
+
+    cmd = stringutils::shift_parameter(params);
+    if(cmd.empty()) {
+        os.printf("FAIL - need one of sub, endsub, call\n");
+        return true;
+    }
+
+    static std::map<std::string, std::vector<std::string>> subroutines;
+    if(cmd == "sub") {
+        if(is_busy()) {
+            os.printf("FAIL - defining a subroutine is not allowed while printing or heaters are on\n");
+            return true;
+        }
+
+        // define a subroutine
+        std::vector<std::string> lines;
+        bool insub = true;
+        while(insub) {
+            // capture lines from the input stream, including rom the lineeditor if enabled
+            // FIXME how do we get the line?
+            std::string ln= ""; // get_line(os);
+            if(ln.empty()) continue;
+
+            if(ln.find_first_of(3) != ln.npos) {  // ctrl-c
+                os.printf("FAIL - subroutine aborted\n");
+                break;
+            }
+            if(ln.rfind("o ", 0) == 0) {
+                // look for "o 100 endsub\n"
+                if(ln.rfind("endsub") == (ln.size()-6-1)) {
+                    insub = false;
+                    break;
+                }
+                os.printf("WARNING - Cannot have an o inside a subroutine - discarded: %s\n", ln.c_str());
+                continue;
+            }
+            // remove \n
+            ln.pop_back();
+            // add line to subroutine
+            lines.push_back(ln);
+        }
+
+        if(!insub) {
+            // add subroutine to map
+            subroutines[name] = lines;
+            os.printf("SUCCESS - Subroutine %s defined\n", name.c_str());
+        }
+        return true;
+    }
+
+    if(cmd == "call") {
+        // find the subroutine
+        auto s = subroutines.find(name);
+        if(s == subroutines.end()) {
+            os.printf("FAIL - Subroutine %s is not defined\n", name.c_str());
+            return true;
+        }
+        auto l = s->second;
+        // execute the subroutine, we are in command thread context so dispatch the lines directly
+        os.set_no_response(); // we don't want to get oks from these commands
+        for (auto& i : l) {
+            dispatch_line(os, i.c_str());
+        }
+        os.set_no_response(false); // but we do want to get ok from the o call command
+        return true;
+    }
+
+    os.printf("FAIL - Unknown o command %s\n", cmd);
+    return true;
+}
+
+bool CommandShell::line_editor_cmd(std::string& params, OutputStream& os)
+{
+    HELP("Enter line editor mode, exit with control-D (turn local echo off)");
+
+    os.set_no_response(true);
+
+    if(os.capture_fnc != nullptr) {
+        os.puts("Something is already capturing input, exiting line edit mode\n");
+        return true;
+    }
+
+    // keeps a local history for this session only
+    LineEditor line_editor(&os);
+    volatile bool eol= false;
+    volatile bool ctrld= false;
+
+
+    os.capture_fnc = [&eol, &ctrld, &line_editor](char c) {
+        if(c == 4 || line_editor.add(c)) { // returns false until eol is entered or ctrl-d
+           ctrld = (c == 4);
+           eol = true;
+        }
+    };
+
+    os.puts("Entering line edit mode, control-D to exit\n");
+    do {
+        os.puts("cmd> ");
+        while(!eol) {
+            safe_sleep(1);
+        }
+        eol = false;
+        if(ctrld) break;
+
+        char buf[256];
+        int n= line_editor.get_line(buf, sizeof(buf) - 1);
+        buf[n] = 0;
+        // check we are not calling ourselves and avoid recursion
+        if(strncmp(buf, "le", 2) == 0) continue;
+
+        // we can call this as we are already in command thread context
+        dispatch_line(os, buf);
+    } while(true);
+
+    os.capture_fnc = nullptr;
+    os.puts("Exiting line edit mode\n");
 
     return true;
 }

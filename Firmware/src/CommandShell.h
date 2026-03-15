@@ -61,6 +61,8 @@ private:
     bool msc_cmd(std::string& params, OutputStream& os);
     bool load_cmd(std::string& params, OutputStream& os);
     bool echo_cmd(std::string& params, OutputStream& os);
+    bool subroutines_cmd(std::string& params, OutputStream& os);
+    bool line_editor_cmd(std::string& params, OutputStream& os);
 
     bool mounted;
 };

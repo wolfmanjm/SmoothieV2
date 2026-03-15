@@ -270,13 +270,13 @@ static std::set<OutputStream*> output_streams;
 bool process_command_buffer(size_t n, char *rx_buf, OutputStream *os, char *line, size_t& cnt, bool& discard, bool wait)
 {
     for (size_t i = 0; i < n; ++i) {
-        line[cnt] = rx_buf[i];
+        char c = rx_buf[i];
         if(os->capture_fnc) {
-            os->capture_fnc(line[cnt]);
+            os->capture_fnc(c);
             continue;
         }
 
-        if(line[cnt] == 24) { // ^X
+        if(c == 24) { // ^X
             if(!Module::is_halted()) {
                 Module::broadcast_halt(true);
                 print_to_all_consoles("ALARM: Abort during cycle\n");
@@ -284,7 +284,7 @@ bool process_command_buffer(size_t n, char *rx_buf, OutputStream *os, char *line
             discard = false;
             cnt = 0;
 
-        } else if(line[cnt] == 25) { // ^Y
+        } else if(c == 25) { // ^Y
             if(Module::is_halted()) {
                 // will also do what $X does
                 Module::broadcast_halt(false);
@@ -294,14 +294,14 @@ bool process_command_buffer(size_t n, char *rx_buf, OutputStream *os, char *line
                 os->set_stop_request(true);
             }
 
-        } else if(line[cnt] == '?') {
+        } else if(c == '?') {
             if(!queries.full()) {
                 queries.push_back({os, nullptr});
             }
 
         } else if(discard) {
             // we discard long lines until we get the newline
-            if(line[cnt] == '\n') discard = false;
+            if(c == '\n') discard = false;
 
         } else if(cnt >= MAX_LINE_LENGTH - 1) {
             // discard long lines
@@ -309,7 +309,7 @@ bool process_command_buffer(size_t n, char *rx_buf, OutputStream *os, char *line
             cnt = 0;
             os->puts("error:Discarding long line\n");
 
-        } else if(line[cnt] == '\n') {
+        } else if(c == '\n') {
             os->clear_flags(); // clear the done flag here to avoid race conditions
             line[cnt] = '\0'; // remove the \n and nul terminate
             if(cnt >= 2 && line[0] == '$' && (line[1] == 'I' || line[1] == 'S' || line[1] == 'X')) {
@@ -336,15 +336,15 @@ bool process_command_buffer(size_t n, char *rx_buf, OutputStream *os, char *line
             }
             cnt = 0;
 
-        } else if(line[cnt] == '\r') {
+        } else if(c == '\r') {
             // ignore CR
             continue;
 
-        } else if(line[cnt] == 8 || line[cnt] == 127) { // BS or DEL
+        } else if(c == 8 || c == 127) { // BS or DEL
             if(cnt > 0) --cnt;
 
         } else {
-            ++cnt;
+            line[cnt++] = c;
         }
     }
 

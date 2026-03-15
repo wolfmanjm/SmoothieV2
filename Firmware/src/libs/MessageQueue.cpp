@@ -31,7 +31,7 @@ int get_message_queue_space()
 // can be called by several threads to submit messages to the dispatcher
 // the line is copied into the message so can be on the stack
 // This call will block until there is room in the queue unless wait is false
-// in which case it will will not wait at all
+// in which case it will not wait at all
 bool send_message_queue(const char *pline, OutputStream *pos, bool wait)
 {
     comms_msg_t msg_buffer;
