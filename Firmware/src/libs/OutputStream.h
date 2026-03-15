@@ -45,7 +45,8 @@ public:
     bool get_stop_request() const { return stop_request; }
     bool is_usb() const { return usb_flag; }
     void set_is_usb() { usb_flag = true; }
-
+    void print_prompt() { if(!prompt.empty()) puts(prompt.c_str()); }
+    void set_prompt(const char *s) { prompt = s; }
     std::function<void(char)> capture_fnc;
     std::function<bool(char*, size_t)> fast_capture_fnc;
 
@@ -66,6 +67,7 @@ private:
 	std::ostream *os;
 	FdBuf *fdbuf;
 	std::string prepending;
+    std::string prompt;
 
 	struct {
     	bool closed:1;

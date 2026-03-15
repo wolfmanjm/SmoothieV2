@@ -1308,7 +1308,7 @@ bool CommandShell::jog_cmd(std::string& params, OutputStream& os)
 
         if(ax == 'E') {
             // find out which is the active extruder
-            is_extruder= Robot::getInstance()->get_active_extruder();
+            is_extruder = Robot::getInstance()->get_active_extruder();
             if(is_extruder > 0) ax = 'A' + is_extruder - 3;
         }
 
@@ -1390,7 +1390,7 @@ bool CommandShell::jog_cmd(std::string& params, OutputStream& os)
         }
 
         // calculate minimum distance to travel to accomodate acceleration and feedrate
-        float d = (fr * fr) / (2*acc); // distance required to fully accelerate to feedrate in mm (d = v*v / 2*a)
+        float d = (fr * fr) / (2 * acc); // distance required to fully accelerate to feedrate in mm (d = v*v / 2*a)
         d = std::max(d, 0.3333F); // get minimum distance to move being 1mm overall so 0.3333mm for each segment
 
         // we need to check if the feedrate is too slow, for continuous jog if it takes over 5 seconds it is too slow
@@ -2229,7 +2229,7 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
         while(insub) {
             // capture lines from the input stream, including rom the lineeditor if enabled
             // FIXME how do we get the line?
-            std::string ln= ""; // get_line(os);
+            std::string ln = ""; // get_line(os);
             if(ln.empty()) continue;
 
             if(ln.find_first_of(3) != ln.npos) {  // ctrl-c
@@ -2238,7 +2238,7 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
             }
             if(ln.rfind("o ", 0) == 0) {
                 // look for "o 100 endsub\n"
-                if(ln.rfind("endsub") == (ln.size()-6-1)) {
+                if(ln.rfind("endsub") == (ln.size() - 6 - 1)) {
                     insub = false;
                     break;
                 }
@@ -2290,42 +2290,31 @@ bool CommandShell::line_editor_cmd(std::string& params, OutputStream& os)
     }
 
     // keeps a local history for this session only
-    LineEditor line_editor(&os);
-    volatile bool eol= false;
-    volatile bool ctrld= false;
+    LineEditor *line_editor = new LineEditor(&os);
 
-    // capture characters as they are input and apss onto line editor
-    os.capture_fnc = [&eol, &ctrld, &line_editor](char c) {
-        if(c == 4 || line_editor.add(c)) { // returns false until eol is entered or ctrl-d
-           ctrld = (c == 4);
-           eol = true;
+    // capture characters as they are input and pass onto line editor
+    // when eol is received dispatch the command
+    // NOTE this runs in a comms thread
+    OutputStream *pos = &os;
+    os.set_prompt("cmd> ");
+    os.capture_fnc = [line_editor, pos](char c) {
+        if(c == 4) { // exit capture and line edit mode
+            delete line_editor;
+            pos->capture_fnc = nullptr;
+            pos->puts("Exiting line edit mode\n");
+            pos->set_prompt("");
+            return;
+        }
+
+        if(line_editor->add(c)) { // returns false until eol is entered
+            char buf[256];
+            int n = line_editor->get_line(buf, sizeof(buf) - 1);
+            buf[n - 1] = 0;
+            send_message_queue(buf, pos);
         }
     };
 
     os.puts("Entering line edit mode, control-D to exit\n");
-    do {
-        os.puts("cmd> ");
-        while(!eol) {
-            safe_sleep(1);
-            // this is needed to make sure queue is running as command thread is stalled
-            Conveyor::getInstance()->check_queue();
-        }
-        eol = false;
-        if(ctrld) break;
-
-        char buf[256];
-        int n= line_editor.get_line(buf, sizeof(buf) - 1);
-        buf[n-1] = 0;
-        // check we are not calling ourselves and avoid recursion
-        if(strncmp(buf, "le", 2) == 0) continue;
-
-        os.set_no_response();
-        // we can call this as we are already in command thread context
-        dispatch_line(os, buf);
-    } while(true);
-
-    os.capture_fnc = nullptr;
-    os.puts("Exiting line edit mode\n");
-
+    // we return freeing up the command thread, the comms thread will handle the line input
     return true;
 }

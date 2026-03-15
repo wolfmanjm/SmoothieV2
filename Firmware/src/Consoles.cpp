@@ -123,7 +123,7 @@ bool dispatch_line(OutputStream& os, const char *ln)
             os.puts("ok\n");
         }
         os.set_no_response(false);
-
+        os.print_prompt();
         return true;
     }
 
@@ -183,6 +183,7 @@ bool dispatch_line(OutputStream& os, const char *ln)
     if(gcodes.empty()) {
         // if gcodes is empty then was a M110, just send ok
         os.puts("ok\n");
+        os.print_prompt();
         return true;
     }
 
@@ -257,6 +258,8 @@ bool dispatch_line(OutputStream& os, const char *ln)
         }
         --ngcodes;
     }
+
+    os.print_prompt();
 
     return true;
 }
