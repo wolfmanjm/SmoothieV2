@@ -267,6 +267,7 @@ static std::set<OutputStream*> output_streams;
 // this is here so we do not need to duplicate this logic for
 // USB serial, UART serial, Network Shell, SDCard player thread
 // NOTE this can block if message queue is full. set wait to false to not wait at all
+// NOTE this is running in a comms thread
 bool process_command_buffer(size_t n, char *rx_buf, OutputStream *os, char *line, size_t& cnt, bool& discard, bool wait)
 {
     for (size_t i = 0; i < n; ++i) {

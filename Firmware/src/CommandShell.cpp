@@ -2213,6 +2213,11 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
 
     static std::map<std::string, std::vector<std::string>> subroutines;
     if(cmd == "sub") {
+        if(true) {
+            os.printf("FAIL - TBD\n");
+            return true;
+        }
+
         if(is_busy()) {
             os.printf("FAIL - defining a subroutine is not allowed while printing or heaters are on\n");
             return true;
@@ -2279,8 +2284,6 @@ bool CommandShell::line_editor_cmd(std::string& params, OutputStream& os)
 {
     HELP("Enter line editor mode, exit with control-D (turn local echo off)");
 
-    os.set_no_response(true);
-
     if(os.capture_fnc != nullptr) {
         os.puts("Something is already capturing input, exiting line edit mode\n");
         return true;
@@ -2291,7 +2294,7 @@ bool CommandShell::line_editor_cmd(std::string& params, OutputStream& os)
     volatile bool eol= false;
     volatile bool ctrld= false;
 
-
+    // capture characters as they are input and apss onto line editor
     os.capture_fnc = [&eol, &ctrld, &line_editor](char c) {
         if(c == 4 || line_editor.add(c)) { // returns false until eol is entered or ctrl-d
            ctrld = (c == 4);
@@ -2304,16 +2307,19 @@ bool CommandShell::line_editor_cmd(std::string& params, OutputStream& os)
         os.puts("cmd> ");
         while(!eol) {
             safe_sleep(1);
+            // this is needed to make sure queue is running as command thread is stalled
+            Conveyor::getInstance()->check_queue();
         }
         eol = false;
         if(ctrld) break;
 
         char buf[256];
         int n= line_editor.get_line(buf, sizeof(buf) - 1);
-        buf[n] = 0;
+        buf[n-1] = 0;
         // check we are not calling ourselves and avoid recursion
         if(strncmp(buf, "le", 2) == 0) continue;
 
+        os.set_no_response();
         // we can call this as we are already in command thread context
         dispatch_line(os, buf);
     } while(true);

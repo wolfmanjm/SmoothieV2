@@ -39,10 +39,12 @@ YModem::~YModem()
 	free(xbuff);
 }
 
+// This is running in a comms thread
 void YModem::add(char c)
 {
+    TickType_t delayms = pdMS_TO_TICKS(10); // 10 ms sleep
 	while(inbuf.full()) {
-		safe_sleep(10);
+        vTaskDelay(delayms);
 	}
 	inbuf.push_back(c);
 }
