@@ -2317,7 +2317,7 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
             os.set_no_response();
             return true;
         }
-        // file is named witjh a .sub extension
+        // file is named with a .sub extension
         std::string fn(name);
         fn.append(".").append("sub");
         FILE *fp = fopen(fn.c_str(), "w");

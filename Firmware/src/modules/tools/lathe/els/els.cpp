@@ -140,10 +140,10 @@ void ELS::check_buttons()
     }
 
     if((buttons & 0x02) && !(last_buttons & 0x02)) {
-        // button 2 pressed, start operation G33 K{var1}
-        if(!lathe->is_running()) {
+        // button 2 pressed, start operation G33 K{var1} where var1 is interpreted as a fixed point nnn.f
+        if(!lathe->is_running() && var1 > 0) {
             std::string cmd("G33 K");
-            cmd.append(std::to_string(var1));
+            cmd.append(std::to_string(var1/10)).append(".").append(std::to_string(std::abs(var1%10)));
             send_message_queue(cmd.c_str(), &os, false);
         }
     }
