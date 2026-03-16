@@ -585,9 +585,22 @@ void command_handler()
         // This will timeout after 100 ms
         if(receive_message_queue(&line, &os)) {
             //printf("DEBUG: got line: %s\n", line);
-            dispatch_line(*os, line);
-            handle_query(false);
-            os->set_done(); // set after all possible output
+            if(os->get_subroutine_def().empty()) {
+                dispatch_line(*os, line);
+                handle_query(false);
+                os->set_done(); // set after all possible output
+
+            } else {
+                // we are defining a subroutine
+                if(strlen(line) >= 2 && line[0] == 'o' && line[1] == ' ') {
+                    dispatch_line(*os, line);
+
+                }else{
+                    std::string cmd("o ");
+                    cmd.append(os->get_subroutine_def()).append(" subdef ").append(line);
+                    dispatch_line(*os, cmd.c_str());
+                }
+            }
 
         } else {
             // timed out or other error

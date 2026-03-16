@@ -47,6 +47,9 @@ public:
     void set_is_usb() { usb_flag = true; }
     void print_prompt() { if(!prompt.empty()) puts(prompt.c_str()); }
     void set_prompt(const char *s) { prompt = s; }
+    void set_subroutine_def(std::string name) { subdef_name= name; }
+    std::string get_subroutine_def() const { return subdef_name; }
+
     std::function<void(char)> capture_fnc;
     std::function<bool(char*, size_t)> fast_capture_fnc;
 
@@ -68,6 +71,7 @@ private:
 	FdBuf *fdbuf;
 	std::string prepending;
     std::string prompt;
+    std::string subdef_name;
 
 	struct {
     	bool closed:1;

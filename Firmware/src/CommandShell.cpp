@@ -2187,19 +2187,29 @@ bool CommandShell::edit_cmd(std::string& params, OutputStream& os)
     return true;
 }
 
+// routine to find the subroutine and return its list of lines
+static std::map<std::string, std::vector<std::string>> subroutines;
+static std::vector<std::string> *fetch_subroutine(std::string& nm)
+{
+    auto s = subroutines.find(nm);
+    if(s == subroutines.end()) {
+        return nullptr;
+    }
+    return &s->second;
+}
+
 // o like subroutines
 // main diiference is only sub, endsub and call are supported
 // no parameters yet
 // there is a space between the o and the name
 // the name can be alphanumeric
-
 bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
 {
     HELP("o 100 sub - define a subroutine, o 100 endsub - ends it, o 100 call - executes it");
 
     std::string cmd = stringutils::shift_parameter(params);
     if(cmd.empty()) {
-        os.printf("FAIL - need a number or name\n");
+        os.printf("error:need a number or name\n");
         return true;
     }
 
@@ -2207,76 +2217,84 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
 
     cmd = stringutils::shift_parameter(params);
     if(cmd.empty()) {
-        os.printf("FAIL - need one of sub, endsub, call\n");
+        os.printf("error:need one of sub, endsub, call\n");
         return true;
     }
 
-    static std::map<std::string, std::vector<std::string>> subroutines;
-    if(cmd == "sub") {
-        if(true) {
-            os.printf("FAIL - TBD\n");
+
+    if(cmd == "subdef") {
+        // internal command that saves the lines to the subroutine
+        if(params.rfind("o ", 0) == 0) {
+            os.printf("WARNING - Cannot have an o inside a subroutine - discarded: %s\n", params.c_str());
             return true;
         }
 
-        if(is_busy()) {
-            os.printf("FAIL - defining a subroutine is not allowed while printing or heaters are on\n");
+        // find the subroutine
+        auto l = fetch_subroutine(name);
+        if(l == nullptr) {
+            os.printf("error: Subroutine %s is not being defined\n", name.c_str());
             return true;
         }
+
+        // save the rest of the line to the definition
+        l->push_back(params);
+        printf("added %s - %d\n", params.c_str(), l->size());
+        return true;
+    }
+
+    if(cmd == "endsub") {
+        os.set_subroutine_def("");
+        printf("ended def %s\n", name.c_str());
+        return true;
+    }
+
+    if(cmd == "sub") {
+        if(!os.get_subroutine_def().empty()) {
+            os.printf("error: Already defining a Subroutine %s\n", name.c_str());
+            return true;
+        }
+        // sets name of subroutine being defined
+        os.set_subroutine_def(name);
 
         // define a subroutine
         std::vector<std::string> lines;
-        bool insub = true;
-        while(insub) {
-            // capture lines from the input stream, including rom the lineeditor if enabled
-            // FIXME how do we get the line?
-            std::string ln = ""; // get_line(os);
-            if(ln.empty()) continue;
+        // add subroutine to map
+        subroutines[name] = lines;
+        return true;
+    }
 
-            if(ln.find_first_of(3) != ln.npos) {  // ctrl-c
-                os.printf("FAIL - subroutine aborted\n");
-                break;
-            }
-            if(ln.rfind("o ", 0) == 0) {
-                // look for "o 100 endsub\n"
-                if(ln.rfind("endsub") == (ln.size() - 6 - 1)) {
-                    insub = false;
-                    break;
-                }
-                os.printf("WARNING - Cannot have an o inside a subroutine - discarded: %s\n", ln.c_str());
-                continue;
-            }
-            // remove \n
-            ln.pop_back();
-            // add line to subroutine
-            lines.push_back(ln);
+    if(cmd == "list") {
+        // list the commands in the subroutine
+        // find the subroutine
+         auto l = fetch_subroutine(name);
+        if(l == nullptr) {
+            os.printf("error: Subroutine %s is not defined\n", name.c_str());
+            return true;
         }
 
-        if(!insub) {
-            // add subroutine to map
-            subroutines[name] = lines;
-            os.printf("SUCCESS - Subroutine %s defined\n", name.c_str());
+        for (auto& i : *l) {
+            os.printf("%s\n", i.c_str());
         }
         return true;
     }
 
     if(cmd == "call") {
         // find the subroutine
-        auto s = subroutines.find(name);
-        if(s == subroutines.end()) {
-            os.printf("FAIL - Subroutine %s is not defined\n", name.c_str());
+        auto l = fetch_subroutine(name);
+        if(l == nullptr) {
+            os.printf("error: Subroutine %s is not defined\n", name.c_str());
             return true;
         }
-        auto l = s->second;
+
         // execute the subroutine, we are in command thread context so dispatch the lines directly
-        os.set_no_response(); // we don't want to get oks from these commands
-        for (auto& i : l) {
-            dispatch_line(os, i.c_str());
+        static OutputStream nullos; // we don't want to get oks from these commands
+        for (auto& i : *l) {
+            dispatch_line(nullos, i.c_str());
         }
-        os.set_no_response(false); // but we do want to get ok from the o call command
         return true;
     }
 
-    os.printf("FAIL - Unknown o command %s\n", cmd);
+    os.printf("error: Unknown o command %s\n", cmd);
     return true;
 }
 
