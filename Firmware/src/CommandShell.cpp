@@ -41,6 +41,7 @@
 #include <fstream>
 #include <malloc.h>
 
+
 #define HELP(m) if(params == "-h") { os.printf("%s\n", m); return true; }
 
 CommandShell* CommandShell::instance = nullptr;
@@ -2200,12 +2201,13 @@ static std::vector<std::string> *fetch_subroutine(std::string& nm)
 
 // o like subroutines
 // main difference is only sub, endsub and call are supported
-// no parameters yet
+// no parameters supported yet
 // there is a space between the o and the name
 // the name can be alphanumeric
+// this requires support in command_handler() to pass definitions onto this routine with the subdef sub-command
 bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
 {
-    HELP("o 100 sub - define a subroutine, o 100 endsub - ends it, o 100 call - executes it");
+    HELP("manage subroutines - o 100 [sub|endsub|call|list|save]");
 
     std::string cmd = stringutils::shift_parameter(params);
     if(cmd.empty()) {
@@ -2218,72 +2220,12 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
 
     cmd = stringutils::shift_parameter(params);
     if(cmd.empty()) {
-        os.printf("error:need one of sub, endsub, call\n");
+        os.printf("error:need one of sub, endsub, call, list or save\n");
         os.set_no_response();
         return true;
     }
 
-
-    if(cmd == "subdef") {
-        // internal command that saves the lines to the subroutine
-        if(params.rfind("o ", 0) == 0) {
-            os.printf("WARNING - Cannot have an o inside a subroutine - discarded: %s\n", params.c_str());
-            return true;
-        }
-
-        // find the subroutine
-        auto l = fetch_subroutine(name);
-        if(l == nullptr) {
-            os.printf("error: Subroutine %s is not being defined\n", name.c_str());
-            return true;
-        }
-
-        // save the rest of the line to the definition
-        l->push_back(params);
-        os.printf("ok - added line %d\n", l->size());
-        os.set_no_response();
-        return true;
-    }
-
-    if(cmd == "endsub") {
-        os.set_subroutine_def("");
-        os.printf("ok - ended sub %s\n", name.c_str());
-        os.set_no_response();
-        return true;
-    }
-
-    if(cmd == "sub") {
-        if(!os.get_subroutine_def().empty()) {
-            os.printf("error: Already defining a Subroutine %s\n", name.c_str());
-            os.set_no_response();
-            return true;
-        }
-        // sets name of subroutine being defined
-        os.set_subroutine_def(name);
-
-        // define a subroutine
-        std::vector<std::string> lines;
-        // add subroutine to map
-        subroutines[name] = lines;
-        return true;
-    }
-
-    if(cmd == "list") {
-        // list the commands in the subroutine
-        // find the subroutine
-         auto l = fetch_subroutine(name);
-        if(l == nullptr) {
-            os.printf("error: Subroutine %s is not defined\n", name.c_str());
-            os.set_no_response();
-            return true;
-        }
-
-        for (auto& i : *l) {
-            os.printf("%s\n", i.c_str());
-        }
-        return true;
-    }
-
+    // executes a subroutine
     if(cmd == "call") {
         // find the subroutine
         auto l = fetch_subroutine(name);
@@ -2301,7 +2243,101 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
         return true;
     }
 
-    os.printf("error: Unknown o command %s\n", cmd);
+    // start a subroutine definition
+    if(cmd == "sub") {
+        if(!os.get_subroutine_def().empty()) {
+            os.printf("error: Already defining a Subroutine %s\n", name.c_str());
+            os.set_no_response();
+            return true;
+        }
+        // sets name of subroutine being defined
+        os.set_subroutine_def(name);
+
+        // define an empty subroutine (overwrites if already existing)
+        std::vector<std::string> lines;
+        // add subroutine to map
+        subroutines[name] = lines;
+        return true;
+    }
+
+    // adds lines to the current subroutine definition
+    if(cmd == "subdef") {
+        // internal command that saves the lines to the subroutine currently being defined
+        // find the subroutine
+        auto l = fetch_subroutine(name);
+        if(os.get_subroutine_def().empty() || l == nullptr) {
+            os.printf("error: Subroutine %s is not being defined\n", name.c_str());
+            return true;
+        }
+
+        if(!params.empty()) {
+            // save the rest of the line to the definition
+            l->push_back(params);
+            os.printf("ok - added line %d\n", l->size());
+        } else {
+            os.printf("ok - empty line discarded\n");
+        }
+        os.set_no_response();
+        return true;
+    }
+
+    // finishes a subroutine definition
+    if(cmd == "endsub") {
+        os.set_subroutine_def("");
+        os.printf("ok - ended sub %s\n", name.c_str());
+        os.set_no_response();
+        return true;
+    }
+
+    // non standard for dev purposes...
+
+    // list the lines in a subroutine
+    if(cmd == "list") {
+        // list the commands in the subroutine
+        // find the subroutine
+        auto l = fetch_subroutine(name);
+        if(l == nullptr) {
+            os.printf("error: Subroutine %s is not defined\n", name.c_str());
+            os.set_no_response();
+            return true;
+        }
+
+        for (auto& i : *l) {
+            os.printf("%s\n", i.c_str());
+        }
+        return true;
+    }
+
+    // save a subroutine to sdcard in a way it can loaded with play
+    if(cmd == "save") {
+        // save the commands in the subroutine
+        auto l = fetch_subroutine(name);
+        if(l == nullptr) {
+            os.printf("error: Subroutine %s is not defined\n", name.c_str());
+            os.set_no_response();
+            return true;
+        }
+        // file is named witjh a .sub extension
+        std::string fn(name);
+        fn.append(".").append("sub");
+        FILE *fp = fopen(fn.c_str(), "w");
+        if(fp == nullptr) {
+            os.printf("error: could not open file %s: %d\n", fn.c_str(), errno);
+            return true;
+        }
+
+        fprintf(fp, "o %s sub\n", name.c_str());
+        for (auto& i : *l) {
+            fprintf(fp, "%s\n", i.c_str());
+        }
+        fprintf(fp, "o %s endsub\n", name.c_str());
+        fclose(fp);
+        os.printf("ok - subroutine saved as %s\n", fn.c_str());
+        os.set_no_response();
+        return true;
+    }
+
+    os.printf("error: Unknown o command %s\n", cmd.c_str());
     os.set_no_response();
     return true;
 }

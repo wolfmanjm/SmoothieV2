@@ -95,7 +95,7 @@ int __wrap_vsprintf(char *str, const char *fmt, va_list ap)
     return __wrap_vsnprintf(str, 1000000, fmt, ap);
 }
 
-#if 0
+#if 1
 // this should work but is untested
 static void my_foutchar(void *arg, char c)
 {

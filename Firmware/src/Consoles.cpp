@@ -585,7 +585,10 @@ void command_handler()
         // This will timeout after 100 ms
         if(receive_message_queue(&line, &os)) {
             //printf("DEBUG: got line: %s\n", line);
+
+            // handle defining subroutines with o xxx sub
             if(os->get_subroutine_def().empty()) {
+                // normal command
                 dispatch_line(*os, line);
                 handle_query(false);
                 os->set_done(); // set after all possible output
@@ -593,9 +596,11 @@ void command_handler()
             } else {
                 // we are defining a subroutine
                 if(strlen(line) >= 2 && line[0] == 'o' && line[1] == ' ') {
+                    // if it is an o command pass it along as is
                     dispatch_line(*os, line);
 
                 }else{
+                    // so it can be processed we create an o xxx subdef restofline
                     std::string cmd("o ");
                     cmd.append(os->get_subroutine_def()).append(" subdef ").append(line);
                     dispatch_line(*os, cmd.c_str());
