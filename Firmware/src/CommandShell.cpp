@@ -2199,7 +2199,7 @@ static std::vector<std::string> *fetch_subroutine(std::string& nm)
 }
 
 // o like subroutines
-// main diiference is only sub, endsub and call are supported
+// main difference is only sub, endsub and call are supported
 // no parameters yet
 // there is a space between the o and the name
 // the name can be alphanumeric
@@ -2210,6 +2210,7 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
     std::string cmd = stringutils::shift_parameter(params);
     if(cmd.empty()) {
         os.printf("error:need a number or name\n");
+        os.set_no_response();
         return true;
     }
 
@@ -2218,6 +2219,7 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
     cmd = stringutils::shift_parameter(params);
     if(cmd.empty()) {
         os.printf("error:need one of sub, endsub, call\n");
+        os.set_no_response();
         return true;
     }
 
@@ -2238,19 +2240,22 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
 
         // save the rest of the line to the definition
         l->push_back(params);
-        printf("added %s - %d\n", params.c_str(), l->size());
+        os.printf("ok - added line %d\n", l->size());
+        os.set_no_response();
         return true;
     }
 
     if(cmd == "endsub") {
         os.set_subroutine_def("");
-        printf("ended def %s\n", name.c_str());
+        os.printf("ok - ended sub %s\n", name.c_str());
+        os.set_no_response();
         return true;
     }
 
     if(cmd == "sub") {
         if(!os.get_subroutine_def().empty()) {
             os.printf("error: Already defining a Subroutine %s\n", name.c_str());
+            os.set_no_response();
             return true;
         }
         // sets name of subroutine being defined
@@ -2269,6 +2274,7 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
          auto l = fetch_subroutine(name);
         if(l == nullptr) {
             os.printf("error: Subroutine %s is not defined\n", name.c_str());
+            os.set_no_response();
             return true;
         }
 
@@ -2283,6 +2289,7 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
         auto l = fetch_subroutine(name);
         if(l == nullptr) {
             os.printf("error: Subroutine %s is not defined\n", name.c_str());
+            os.set_no_response();
             return true;
         }
 
@@ -2295,6 +2302,7 @@ bool CommandShell::subroutines_cmd(std::string& params, OutputStream& os)
     }
 
     os.printf("error: Unknown o command %s\n", cmd);
+    os.set_no_response();
     return true;
 }
 
