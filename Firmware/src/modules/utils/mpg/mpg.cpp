@@ -85,7 +85,19 @@ bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const char
     xBinarySemaphore = xSemaphoreCreateBinary();
     xTaskCreate(vHandlerTask, "EncoderHandler", 512, this, 3, NULL);
 
+    // set this so the command ctx call back gets called
+    want_command_ctx = true;
+
     return true;
+}
+
+// this gets called in command thread
+// used to avoid concurrent access to reset_position_from_current_actuator_position()
+void MPG::in_command_ctx(bool idle)
+{
+    if(!position_changed) return;
+    Robot::getInstance()->reset_position_from_current_actuator_position();
+    position_changed = false;
 }
 
 void MPG::vHandlerTask(void *instance)
@@ -136,8 +148,7 @@ void MPG::check_encoder()
             }
 
             // reset the position based on current actuator position
-            Robot::getInstance()->reset_position_from_current_actuator_position();
-
+            position_changed = true;
             // printf("enc %lu, delta: %ld\n", cnt, d);
         }
     }

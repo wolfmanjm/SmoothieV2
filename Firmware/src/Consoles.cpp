@@ -650,6 +650,8 @@ void command_handler()
 // process things like instant query
 void safe_sleep(uint32_t ms)
 {
+    configASSERT(strncmp(pcTaskGetName(NULL), "CommandThread", configMAX_TASK_NAME_LEN - 1) == 0);
+
     // here we need to sleep (and yield) for 10ms then check if we need to handle the query command
     TickType_t delayms = pdMS_TO_TICKS(10); // 10 ms sleep
     while(ms > 0) {

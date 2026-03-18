@@ -161,6 +161,9 @@ void ELS::check_buttons()
                 enter_value= false;
 
             } else {
+                char buf[10];
+                sprintf(buf, "EDIT%04d", var1);
+                edstr= buf;
                 edstr.insert((8-edpos), ".");
             }
         }
@@ -178,14 +181,18 @@ void ELS::check_buttons()
             sprintf(buf, "EDIT%04d", var1);
             edstr= buf;
             edstr.insert((8-edpos), ".");
+            if(tm->lock()) {
+                tm->displayText(edstr.c_str());
+                tm->unlock();
+            }
+
         } else {
             if(++var1 > 9999) {
                 var1= 9999;
-            }else{
-                if(tm->lock()) {
-                    tm->DisplayDecNumNibble((int)roundf(rpm), var1, false, TMAlignTextRight);
-                    tm->unlock();
-                }
+            }
+            if(tm->lock()) {
+                tm->DisplayDecNumNibble((int)roundf(rpm), var1, false, TMAlignTextRight);
+                tm->unlock();
             }
         }
     }
@@ -197,21 +204,21 @@ void ELS::check_buttons()
             sprintf(buf, "EDIT%04d", var1);
             edstr= buf;
             edstr.insert((8-edpos), ".");
+            if(tm->lock()) {
+                tm->displayText(edstr.c_str());
+                tm->unlock();
+            }
         } else {
             if(--var1 < 0) {
                 var1= 0;
-            }else{
-                if(tm->lock()) {
-                    tm->DisplayDecNumNibble((int)roundf(rpm), var1, false, TMAlignTextRight);
-                    tm->unlock();
-                }
+            }
+            if(tm->lock()) {
+                tm->DisplayDecNumNibble((int)roundf(rpm), var1, false, TMAlignTextRight);
+                tm->unlock();
             }
         }
     }
 
     last_buttons= buttons;
 }
-
-
-
 

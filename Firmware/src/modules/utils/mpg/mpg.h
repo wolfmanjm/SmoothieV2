@@ -14,6 +14,7 @@ class MPG : public Module {
     public:
         MPG();
         static bool create(ConfigReader& cr);
+        virtual void in_command_ctx(bool idle);
 
     private:
         bool configure(ConfigReader& cr, ConfigReader::section_map_t& m, const char *name);
@@ -26,4 +27,5 @@ class MPG : public Module {
         void *xBinarySemaphore;
         RotaryEncoder *enc;
         volatile uint32_t last_count{0};
+        volatile bool position_changed{false};
 };
