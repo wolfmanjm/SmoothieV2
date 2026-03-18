@@ -61,7 +61,7 @@ bool Lathe::configure(ConfigReader& cr)
     // use index pin if we define one
     index_pin =  new Pin(cr.get_string(m, index_pin_key, "nc"));
     if(index_pin->connected()) {
-        index_pin->as_interrupt(std::bind(&Lathe::handle_index_irq, this), Pin::RISING);
+        index_pin->as_interrupt(std::bind(&Lathe::handle_index_irq, this), Pin::FALLING);
         if(!index_pin->connected()) {
             printf("ERROR: configure-lathe: Cannot set index pin to interrupt %s\n", index_pin->to_string().c_str());
             delete index_pin;
@@ -112,8 +112,8 @@ bool Lathe::configure(ConfigReader& cr)
 bool Lathe::rpm_cmd(std::string& params, OutputStream& os)
 {
     HELP("display current rpm");
-
     os.printf("%1.1f\n", rpm);
+    os.printf("index: %d, encoder: %d\n", index_pulse.load(), read_quadrature_encoder());
     os.set_no_response();
     return true;
 }
@@ -162,8 +162,8 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             // NOTE the spindle and encoder must be geared 1:1 (or multiple spindle turns per 1 encoder turn)
             // for this to have the desired effect, ie always start at the same place.
             if(index_pin != nullptr) {
-                uint32_t curindex = index_pulse;
-                while(curindex == index_pulse) {
+                uint32_t curindex = index_pulse.load();
+                while(curindex == index_pulse.load()) {
                     // wait for index pulse to be hit
                     // TODO may need to do safe_sleep here but that may take too long
                     if(Module::is_halted() || rpm == 0) return true;
@@ -233,8 +233,14 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
 
 void Lathe::handle_index_irq()
 {
-    // count index pulses
-    ++index_pulse;
+    static uint32_t last_index_pulse_time = benchmark_timer_start();
+    // we need to debounce this
+    uint32_t deltams = benchmark_timer_as_ms(benchmark_timer_elapsed(last_index_pulse_time));
+    if(deltams > 10 || benchmark_timer_wrapped(last_index_pulse_time)) { // allows for max RPM of 6000
+        // count index pulses
+        index_pulse++;
+    }
+    last_index_pulse_time = benchmark_timer_start();
 }
 
 // called every 100 ms to calculate current RPM
@@ -255,22 +261,23 @@ void Lathe::handle_rpm()
         // use the index pin to calculate RPM
         // sample about every second to increase pulse count captured
         if(deltams >= 1000) {
+            uint32_t ip = index_pulse.load(); // capture current index_pulse count
             lasttime = benchmark_timer_start();
-            if(last_index_pulse > index_pulse) {
-                // we wrapped so skip this one
-                last_index_pulse = index_pulse;
-                return;
+            uint32_t d;
+            if(last_index_pulse > ip) {
+                // we wrapped so adjust
+                d = (last_index_pulse - ip) - 0xFFFFFFFF + 1;
+            } else {
+                d = ip - last_index_pulse;
             }
-
-            uint32_t d = index_pulse - last_index_pulse;
-            last_index_pulse = index_pulse;
+            last_index_pulse = ip;
             rpm = (d * 60 * (1000.0F / deltams));
         }
 
     } else {
         // use encoder to calculate RPM
         lasttime = benchmark_timer_start();
-        handle_rpm_encoder(deltams);
+        rpm = handle_rpm_encoder(deltams);
     }
 }
 
@@ -278,7 +285,7 @@ void Lathe::handle_rpm()
 // Note at .5 secs sample rate we would wrap the counter at 960RPM and get a false reading (with a 2000ppr encoder returning 4000ppr)
 // at 10Hz sample rate we can go upto 4500RPM without wrapping
 // using a moving average to steady the RPM reading
-void Lathe::handle_rpm_encoder(uint32_t deltams)
+float Lathe::handle_rpm_encoder(uint32_t deltams)
 {
     static float ave[10];
     static int ave_cnt = 0;
@@ -287,6 +294,7 @@ void Lathe::handle_rpm_encoder(uint32_t deltams)
     uint32_t qediv = get_quadrature_encoder_div();
     uint32_t cnt = read_quadrature_encoder();
     uint32_t c = (cnt > last) ? cnt - last : last - cnt;
+
     last = cnt;
 
     // deal with over/underflow
@@ -299,7 +307,6 @@ void Lathe::handle_rpm_encoder(uint32_t deltams)
     if(ave_cnt < 10) {
         // fill the array first
         ave[ave_cnt++] = r;
-        rpm = r;
     } else {
         // use moving average
         float sum = r;
@@ -308,8 +315,10 @@ void Lathe::handle_rpm_encoder(uint32_t deltams)
             sum += ave[i];
         }
         ave[9] = r;
-        rpm = sum / 10;
+        r = sum / 10;
     }
+
+    return r;
 }
 
 // given move in spindle, calculate where the controlled axis should be

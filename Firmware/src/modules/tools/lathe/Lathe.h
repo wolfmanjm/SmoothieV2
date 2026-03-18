@@ -25,13 +25,13 @@ class Lathe : public Module {
         float calculate_position(int32_t cnt);
         float get_encoder_delta();
         void handle_rpm();
-        void handle_rpm_encoder(uint32_t deltams);
+        float handle_rpm_encoder(uint32_t deltams);
         void handle_index_irq();
 
         float wanted_pos{0};
         StepperMotor *stepper_motor;
         Pin *index_pin{nullptr};
-        volatile uint32_t index_pulse{0};
+        std::atomic_uint index_pulse{0};
 
         uint8_t motor_id;
         bool current_direction;
