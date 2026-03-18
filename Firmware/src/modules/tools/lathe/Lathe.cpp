@@ -233,12 +233,21 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
 
 void Lathe::handle_index_irq()
 {
-    static uint32_t last_index_pulse_time = benchmark_timer_start();
-    // we need to debounce this
-    uint32_t deltams = benchmark_timer_as_ms(benchmark_timer_elapsed(last_index_pulse_time));
-    if(deltams > 10 || benchmark_timer_wrapped(last_index_pulse_time)) { // allows for max RPM of 6000
+    static uint32_t last_index_pulse_time = 0;
+    // we need to debounce this, scope says the bounce is about 50us after the first one
+    uint32_t deltaus = benchmark_timer_as_us(benchmark_timer_elapsed(last_index_pulse_time));
+    if(deltaus > 100 || benchmark_timer_wrapped(last_index_pulse_time)) {
         // count index pulses
         index_pulse++;
+        if(deltaus < 6000000) {
+            // save time of index pulse and measure time between the pulses
+            uint32_t n = benchmark_timer_start();
+            uint32_t l = index_time.exchange(n);
+            uint32_t d = (n >= l) ? n-l : 0xFFFFFFFF-(l-n)+1;
+            index_time_delta.store(d);
+        } else {
+            index_time_delta.store(0);
+        }
     }
     last_index_pulse_time = benchmark_timer_start();
 }
@@ -246,7 +255,6 @@ void Lathe::handle_index_irq()
 // called every 100 ms to calculate current RPM
 void Lathe::handle_rpm()
 {
-    static uint32_t last_index_pulse = 0;
     static uint32_t lasttime = 0;
 
     if(lasttime == 0 || benchmark_timer_wrapped(lasttime)) {
@@ -258,6 +266,18 @@ void Lathe::handle_rpm()
     uint32_t deltams = benchmark_timer_as_ms(benchmark_timer_elapsed(lasttime));
 
     if(index_pin != nullptr) {
+        #if 1
+        // measure time between index pulses, which seems to be much more stable
+        uint32_t dtus = benchmark_timer_as_us(index_time_delta.load());
+        if(dtus > 0 && dtus < 6e6F) { // if less than 10RPM we are mostly stopped
+            rpm = 60.0F * (1e6F / dtus);
+        } else {
+            rpm = 0;
+        }
+
+        #else
+        static uint32_t last_index_pulse = 0;
+        static uint32_t last_index_time = 0;
         // use the index pin to calculate RPM
         // sample about every second to increase pulse count captured
         if(deltams >= 1000) {
@@ -273,6 +293,7 @@ void Lathe::handle_rpm()
             last_index_pulse = ip;
             rpm = (d * 60 * (1000.0F / deltams));
         }
+        #endif
 
     } else {
         // use encoder to calculate RPM
@@ -282,6 +303,7 @@ void Lathe::handle_rpm()
 }
 
 // calculate RPM from Encoder
+// each pulse is about 32us @ 1000RPM
 // Note at .5 secs sample rate we would wrap the counter at 960RPM and get a false reading (with a 2000ppr encoder returning 4000ppr)
 // at 10Hz sample rate we can go upto 4500RPM without wrapping
 // using a moving average to steady the RPM reading
