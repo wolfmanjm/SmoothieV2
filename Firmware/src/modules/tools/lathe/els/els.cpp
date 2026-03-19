@@ -152,6 +152,11 @@ void ELS::check_buttons()
         }
     }
 
+    if((buttons & 0x04) && !(last_buttons & 0x04)) {
+        // button 3 pressed, go back to 0
+        send_message_queue("G0 Z0", &os, false);
+    }
+
     // digit edit select
     if((buttons & 0x08) && !(last_buttons & 0x08)) {
         if(!enter_value) {

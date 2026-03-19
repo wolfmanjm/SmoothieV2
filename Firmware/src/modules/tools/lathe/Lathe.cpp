@@ -13,7 +13,6 @@
 #include "main.h"
 #include "OutputStream.h"
 #include "Pin.h"
-#include "benchmark_timer.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -97,8 +96,6 @@ bool Lathe::configure(ConfigReader& cr)
     // register gcodes and mcodes
     using std::placeholders::_1;
     using std::placeholders::_2;
-
-    benchmark_timer_init();
 
     Dispatcher::getInstance()->add_handler(Dispatcher::GCODE_HANDLER, 33, std::bind(&Lathe::handle_gcode, this, _1, _2));
     Dispatcher::getInstance()->add_handler("rpm", std::bind( &Lathe::rpm_cmd, this, _1, _2) );
@@ -234,74 +231,51 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
     return false;
 }
 
+extern "C" uint32_t get_microseconds();
 void Lathe::handle_index_irq()
 {
     static uint32_t last_index_pulse_time = 0;
     // we need to debounce this, scope says the bounce is about 50us after the first one
-    uint32_t deltaus = benchmark_timer_as_us(benchmark_timer_elapsed(last_index_pulse_time));
-    if(deltaus > 100 || benchmark_timer_wrapped(last_index_pulse_time)) {
+    uint32_t deltaus = get_microseconds() - last_index_pulse_time;
+    if(deltaus > 100) {
         // count index pulses
         index_pulse++;
         // save time of index pulse and measure time between the pulses
-        uint32_t n = benchmark_timer_start();
+        uint32_t n = get_microseconds();
         uint32_t l = index_time.exchange(n);
         uint32_t d = (n >= l) ? n-l : 0xFFFFFFFF-(l-n)+1;
         index_time_delta.store(d);
     }
-    last_index_pulse_time = benchmark_timer_start();
+    last_index_pulse_time = get_microseconds();
 }
 
 // called every 100 ms to calculate current RPM
 void Lathe::handle_rpm()
 {
-    static uint32_t lasttime = 0;
-
-    if(lasttime == 0 || benchmark_timer_wrapped(lasttime)) {
-        lasttime = benchmark_timer_start();
-        return;
-    }
-
-    // get elapsed time since last call, more accurate than relying on 100ms timer
-    uint32_t deltams = benchmark_timer_as_ms(benchmark_timer_elapsed(lasttime));
-
     if(index_pin != nullptr) {
-        #if 1
         // measure time between index pulses, which seems to be much more stable
-        uint32_t dtus = benchmark_timer_as_us(index_time_delta.load());
+        uint32_t dtus = index_time_delta.load();
         if(dtus > 0) {
             rpm = 60.0F * (1e6F / dtus);
             if(rpm > 9999) {
                 rpm= 0;
                 index_time_delta.store(0);
             }
-        } else {
-            rpm = 0;
         }
-
-        #else
-        static uint32_t last_index_pulse = 0;
-        static uint32_t last_index_time = 0;
-        // use the index pin to calculate RPM
-        // sample about every second to increase pulse count captured
-        if(deltams >= 1000) {
-            uint32_t ip = index_pulse.load(); // capture current index_pulse count
-            lasttime = benchmark_timer_start();
-            uint32_t d;
-            if(last_index_pulse > ip) {
-                // we wrapped so adjust
-                d = (last_index_pulse - ip) - 0xFFFFFFFF + 1;
-            } else {
-                d = ip - last_index_pulse;
-            }
-            last_index_pulse = ip;
-            rpm = (d * 60 * (1000.0F / deltams));
-        }
-        #endif
 
     } else {
+        static uint32_t lasttime = 0;
+
+        if(lasttime == 0)  {
+            lasttime = get_microseconds();
+            return;
+        }
+
         // use encoder to calculate RPM
-        lasttime = benchmark_timer_start();
-        rpm = handle_rpm_encoder(deltams);
+        // get elapsed time since last call, more accurate than relying on 100ms timer
+        uint32_t deltaus = get_microseconds() - lasttime;
+        lasttime = get_microseconds();
+        rpm = handle_rpm_encoder(deltaus/1000);
     }
 }
 

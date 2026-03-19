@@ -155,6 +155,8 @@ _ramfunc_  void StepTicker::step_tick (void)
         missed_unsteps++; // keep track for diagnostics
     }
 
+    // due to the race of setting to nullptr and calling the fnc
+    // the caller should never set the fnc to nullptr, but return -2 instead
     if(callback_fnc) {
         // call an external function
         int m = callback_fnc();

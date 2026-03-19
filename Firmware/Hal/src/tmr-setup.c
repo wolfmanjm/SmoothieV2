@@ -280,3 +280,45 @@ void fasttick_stop()
     HAL_TIM_Base_DeInit(&FastTickTimHandle);
 }
 
+void microsecond_init(void)
+{
+    /* 1. Enable TIM5 peripheral clock (on APB1) */
+    RCC->APB1LENR |= RCC_APB1LENR_TIM5EN;
+    (void)RCC->APB1LENR;   /* dummy read — ensure clock is enabled before access */
+
+    /* 2. Stop the timer while we configure it */
+    TIM5->CR1 = 0;
+
+    /* 3. Prescaler: timer clock / (PSC + 1) = tick rate
+     *
+     *   Default clock tree (no CubeMX overrides):
+     * SYSCLK  = 400 MHz
+     *   AHB   = 200 MHz  (÷2)
+     *   APB1  = 100 MHz  (÷2)
+     *   TIM5  = 200 MHz  (×2 because APB1 prescaler > 1)
+     *
+     *   PSC = (200_000_000 / 1_000_000) - 1 = 199
+     *   If your APB1 timer clock differs, adjust:
+     *     PSC = (APB1_TIMER_CLK_HZ / 1_000_000) - 1
+     */
+    // uint32_t apb1_timer_clk = HAL_RCC_GetPCLK1Freq() * 2;  /* ×2 because APB1 prescaler > 1 */
+    // TIM5->PSC = (apb1_timer_clk / 1000000U) - 1;
+    TIM5->PSC = 199;
+
+    /* 4. Auto-reload = max value → free-running 32-bit counter */
+    TIM5->ARR = 0xFFFFFFFF;
+
+    /* 5. Force prescaler/ARR to load immediately */
+    TIM5->EGR = TIM_EGR_UG;
+
+    /* 6. Clear the update flag set by UG */
+    TIM5->SR = 0;
+
+    /* 7. Enable the counter */
+    TIM5->CR1 = TIM_CR1_CEN;
+}
+
+uint32_t get_microseconds()
+{
+	return TIM5->CNT;
+}
