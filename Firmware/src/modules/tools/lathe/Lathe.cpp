@@ -175,8 +175,8 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             current_direction = stepper_motor->get_direction();
 
             // have stepticker call us
-            StepTicker::getInstance()->callback_fnc = std::bind(&Lathe::update_position, this);
             running = true;
+            StepTicker::getInstance()->callback_fnc = std::bind(&Lathe::update_position, this);
 
             // We have to wait for this to complete
             while(running && !Module::is_halted()) {
@@ -189,11 +189,8 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
                     break;
                 }
             }
-
             running = false;
-            StepTicker::getInstance()->callback_fnc = nullptr;
             end_pos = NAN;
-
             safe_sleep(100);
             // reset the position based on current actuator position
             Robot::getInstance()->reset_position_from_current_actuator_position();
@@ -210,8 +207,8 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             current_direction = stepper_motor->get_direction();
 
             // have stepticker call us
-            StepTicker::getInstance()->callback_fnc = std::bind(&Lathe::update_position, this);
             running = true;
+            StepTicker::getInstance()->callback_fnc = std::bind(&Lathe::update_position, this);
 
             while(!os.get_stop_request() && !Module::is_halted()) {
                 safe_sleep(100);
@@ -224,9 +221,6 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
                 // }
             }
             running = false;
-
-            StepTicker::getInstance()->callback_fnc = nullptr;
-
             os.set_stop_request(false);
             safe_sleep(100);
             // reset the position based on current actuator position
@@ -412,7 +406,7 @@ float Lathe::get_encoder_delta()
 _ramfunc_
 int Lathe::update_position()
 {
-    if(!running || Module::is_halted()) return -1;
+    if(!running || Module::is_halted()) return -2;
 
     float current_position = stepper_motor->get_current_position();
 
@@ -422,7 +416,7 @@ int Lathe::update_position()
         // FIXME an equality operation is probably risky here we need to do > or < based on direction of travel
         if(equal_within(end_pos, current_position, delta_mm)) {
             running = false;
-            return -1;
+            return -2;
         }
     }
 

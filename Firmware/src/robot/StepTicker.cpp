@@ -158,7 +158,9 @@ _ramfunc_  void StepTicker::step_tick (void)
     if(callback_fnc) {
         // call an external function
         int m = callback_fnc();
-        if(m >= 0) {
+        if(m == -2) {
+            callback_fnc = nullptr;
+        } else if(m >= 0) {
             // we stepped so schedule an unstep
             unstep |= (1 << m);
         }
