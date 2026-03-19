@@ -420,10 +420,12 @@ static void usb_comms(void *param)
                 if(os->fast_capture_fnc) {
                     if(!os->fast_capture_fnc(usb_rx_buf, n)) {
                         os->fast_capture_fnc = nullptr; // we are done ok
+                        // fall through to process as normal
+                    } else {
+                        continue;
                     }
-                } else {
-                    process_command_buffer(n, usb_rx_buf, os, line, cnt, discard);
                 }
+                process_command_buffer(n, usb_rx_buf, os, line, cnt, discard);
             }
 #if 1
             uint32_t db;
