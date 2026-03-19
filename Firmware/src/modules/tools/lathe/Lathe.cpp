@@ -113,7 +113,7 @@ bool Lathe::rpm_cmd(std::string& params, OutputStream& os)
 {
     HELP("display current rpm");
     os.printf("%1.1f\n", rpm);
-    os.printf("index: %d, encoder: %d\n", index_pulse.load(), read_quadrature_encoder());
+    // os.printf("index: %d, encoder: %d\n", index_pulse.load(), read_quadrature_encoder());
     os.set_no_response();
     return true;
 }
@@ -151,11 +151,11 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             float distance = gcode.get_arg('Z'); // distance to move
             end_pos = stepper_motor->get_current_position() + distance;
 
-            if(distance < 0) {
+            if(distance >= 0) {
                 reversed = true;
-                distance = -distance;
             } else {
                 reversed = false;
+                distance = -distance;
             }
 
             // if we have an index_pin then we wait to start by synchronizing to it
@@ -170,6 +170,12 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
                 }
             }
 
+            target_position = stepper_motor->get_current_position();
+            if(!stepper_motor->is_enabled()) stepper_motor->enable(true);
+            current_direction = stepper_motor->get_direction();
+
+            // have stepticker call us
+            StepTicker::getInstance()->callback_fnc = std::bind(&Lathe::update_position, this);
             running = true;
 
             // We have to wait for this to complete
@@ -185,7 +191,10 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             }
 
             running = false;
+            StepTicker::getInstance()->callback_fnc = nullptr;
+            end_pos = NAN;
 
+            safe_sleep(100);
             // reset the position based on current actuator position
             Robot::getInstance()->reset_position_from_current_actuator_position();
 
@@ -239,15 +248,11 @@ void Lathe::handle_index_irq()
     if(deltaus > 100 || benchmark_timer_wrapped(last_index_pulse_time)) {
         // count index pulses
         index_pulse++;
-        if(deltaus < 6000000) {
-            // save time of index pulse and measure time between the pulses
-            uint32_t n = benchmark_timer_start();
-            uint32_t l = index_time.exchange(n);
-            uint32_t d = (n >= l) ? n-l : 0xFFFFFFFF-(l-n)+1;
-            index_time_delta.store(d);
-        } else {
-            index_time_delta.store(0);
-        }
+        // save time of index pulse and measure time between the pulses
+        uint32_t n = benchmark_timer_start();
+        uint32_t l = index_time.exchange(n);
+        uint32_t d = (n >= l) ? n-l : 0xFFFFFFFF-(l-n)+1;
+        index_time_delta.store(d);
     }
     last_index_pulse_time = benchmark_timer_start();
 }
@@ -269,8 +274,12 @@ void Lathe::handle_rpm()
         #if 1
         // measure time between index pulses, which seems to be much more stable
         uint32_t dtus = benchmark_timer_as_us(index_time_delta.load());
-        if(dtus > 0 && dtus < 6e6F) { // if less than 10RPM we are mostly stopped
+        if(dtus > 0) {
             rpm = 60.0F * (1e6F / dtus);
+            if(rpm > 9999) {
+                rpm= 0;
+                index_time_delta.store(0);
+            }
         } else {
             rpm = 0;
         }
