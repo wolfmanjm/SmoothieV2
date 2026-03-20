@@ -259,9 +259,6 @@ void Lathe::handle_rpm()
         uint32_t dtus = index_time_delta.load();
          if(dtus > 0) {
             rpm = 60.0F * (1e6F / dtus);
-            if(rpm > 9999) {
-                rpm= 9999;
-            }
         } else {
             rpm = 0;
             return;

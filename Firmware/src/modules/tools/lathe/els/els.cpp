@@ -84,6 +84,14 @@ void ELS::after_load()
     started= true;
 }
 
+uint32_t ELS::get_rpm(){
+    uint32_t rpm = roundf(lathe->get_rpm());
+    if(rpm > 9999) {
+        rpm= 9999;
+    }
+    return rpm;
+}
+
 void ELS::update_rpm()
 {
     if(tm == nullptr || !started || enter_value) return;
@@ -91,8 +99,7 @@ void ELS::update_rpm()
     // update display once per second
     if(tm->lock()) {
         // display current RPM in 4 left segments
-        rpm= lathe->get_rpm();
-        sprintf(buf, "%4d%03d.%1d", (int)roundf(rpm), var1/10, var1%10);
+        sprintf(buf, "%4lu%03d.%1d", get_rpm(), var1/10, var1%10);
         buf[9] = 0;
         tm->displayText(buf);
 
@@ -207,7 +214,7 @@ void ELS::check_buttons()
                 var1= 9999;
             }
             if(tm->lock()) {
-                sprintf(buf, "%4d%03d.%1d", (int)roundf(rpm), var1/10, var1%10);
+                sprintf(buf, "%4lu%03d.%1d", get_rpm(), var1/10, var1%10);
                 buf[9] = 0;
                 tm->displayText(buf);
                 tm->unlock();
@@ -232,7 +239,7 @@ void ELS::check_buttons()
                 var1= 0;
             }
             if(tm->lock()) {
-                sprintf(buf, "%4d%03d.%1d", (int)roundf(rpm), var1/10, var1%10);
+                sprintf(buf, "%4lu%03d.%1d", get_rpm(), var1/10, var1%10);
                 buf[9] = 0;
                 tm->displayText(buf);
                 tm->unlock();
