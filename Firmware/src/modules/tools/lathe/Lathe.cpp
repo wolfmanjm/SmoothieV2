@@ -235,9 +235,9 @@ extern "C" uint32_t get_microseconds();
 void Lathe::handle_index_irq()
 {
     static uint32_t last_index_pulse_time = 0;
-    // we need to debounce this, scope says the bounce is about 50us after the first one
+    // we need to debounce this, scope says the bounce is about 50us to 250us after the first one
     uint32_t deltaus = get_microseconds() - last_index_pulse_time;
-    if(deltaus > 100) {
+    if(deltaus > 300) {
         // count index pulses
         index_pulse++;
         // save time of index pulse and measure time between the pulses
@@ -252,19 +252,35 @@ void Lathe::handle_index_irq()
 // called every 100 ms to calculate current RPM
 void Lathe::handle_rpm()
 {
+    static uint32_t lasttime = 0;
+    static uint32_t lastcnt = 0;
     if(index_pin != nullptr) {
         // measure time between index pulses, which seems to be much more stable
         uint32_t dtus = index_time_delta.load();
-        if(dtus > 0) {
+         if(dtus > 0) {
             rpm = 60.0F * (1e6F / dtus);
             if(rpm > 9999) {
-                rpm= 0;
+                rpm= 9999;
+            }
+        } else {
+            rpm = 0;
+            return;
+        }
+
+        // if the index does not increase within a certain time then determine the spindle has stopped
+        uint32_t cnt = index_pulse.load();
+        if(lastcnt == cnt) {
+            uint32_t deltams = (get_microseconds() - lasttime) / 1000;
+            if(deltams > 1000) {
+                rpm = 0;
                 index_time_delta.store(0);
             }
+        } else {
+            lasttime = get_microseconds();
+            lastcnt = cnt;
         }
 
     } else {
-        static uint32_t lasttime = 0;
 
         if(lasttime == 0)  {
             lasttime = get_microseconds();

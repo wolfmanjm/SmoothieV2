@@ -31,9 +31,9 @@ class Lathe : public Module {
         float wanted_pos{0};
         StepperMotor *stepper_motor;
         Pin *index_pin{nullptr};
-        std::atomic_uint index_pulse{0};
-        std::atomic_uint index_time{0};
-        std::atomic_uint index_time_delta{0};
+        std::atomic_uint32_t index_pulse{0};
+        std::atomic_uint32_t index_time{0};
+        std::atomic_uint32_t index_time_delta{0};
 
         uint8_t motor_id;
         bool current_direction;
