@@ -192,7 +192,10 @@ void ButtonBox::button_tick()
 
         if(state_changed && cmd != nullptr) {
             if(strcmp(cmd, "$J STOP") == 0) {
-                os.set_stop_request(true);
+                if(!Module::is_halted()){
+                    // if we are in AlARM state don't send ^Y
+                    os.set_stop_request(true);
+                }
                 i.state = new_state;
 
             } else if(strcmp(cmd, "KILL") == 0) {
