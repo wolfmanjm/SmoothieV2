@@ -196,6 +196,7 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             gcode.set_error("Only (Lathe) Z axis currently supported");
 
         } else {
+            // NOTE this may be removed as it is not standard and may not be very accurate
             // no Z arg means manual mode where the half nut must be engaged and disengaged, control Y will stop it
             // K sets the mm per revolution
             end_pos = NAN;
@@ -219,7 +220,8 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             }
             running = false;
             os.set_stop_request(false);
-            safe_sleep(100);
+            // give it time to fully stop
+            safe_sleep(500);
             // reset the position based on current actuator position
             Robot::getInstance()->reset_position_from_current_actuator_position();
         }
@@ -257,8 +259,14 @@ void Lathe::handle_rpm()
     if(index_pin != nullptr) {
         // measure time between index pulses, which seems to be much more stable
         uint32_t dtus = index_time_delta.load();
-         if(dtus > 0) {
-            rpm = 60.0F * (1e6F / dtus);
+        if(dtus > 0) {
+            // if last rpm is 0 it means the spindle was not running so last time is invalid
+            // so set to 1 so the next time around we calculate the correct rpm
+            if(rpm > 0) {
+                rpm = 60.0F * (1e6F / dtus);
+            } else {
+                rpm = 1;
+            }
         } else {
             rpm = 0;
             return;
@@ -390,6 +398,8 @@ float Lathe::get_encoder_delta()
 // if not then two or more steps maybe issued at a very fast rate
 // NOTE We could run this at a much slower rate and try to setup a block to move the distance accumulated, at a rate
 // determined by the spindle RPM. Not sure if that is practical though.
+// This maybe preferable (if possible), as it currently is when the distance is reached it stops abruptly with no deceleration
+// similarly it starts abruptly with no acceleration
 _ramfunc_
 int Lathe::update_position()
 {
@@ -400,11 +410,19 @@ int Lathe::update_position()
     if(!std::isnan(end_pos)) {
         // G33 Znnn mode run the lead screw at the given rate (mm/rev in dpr) until distance is reached
         // check if we have travelled the required distance
+        #if 0
         // FIXME an equality operation is probably risky here we need to do > or < based on direction of travel
         if(equal_within(end_pos, current_position, delta_mm)) {
             running = false;
             return -2;
         }
+        #else
+        // FIXME this only works for moves in the negative Z direction
+        if(current_position <= end_pos) {
+            running = false;
+            return -2;
+        }
+        #endif
     }
 
     float delta = get_encoder_delta();

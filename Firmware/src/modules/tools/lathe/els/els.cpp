@@ -132,8 +132,8 @@ void ELS::check_buttons()
     /* buttons contains a byte with values of button s8s7s6s5s4s3s2s1
      HEX  :  Switch no : Binary
      0x01 : S1 Pressed  0000 0001 - Stop operation
-     0x02 : S2 Pressed  0000 0010 - start G33 operation
-     0x04 : S3 Pressed  0000 0100 - start G1 operation
+     0x02 : S2 Pressed  0000 0010 - start G33 operation 1
+     0x04 : S3 Pressed  0000 0100 - start G33 operation 2
      0x08 : S4 Pressed  0000 1000 - edit number
      0x10 : S5 Pressed  0001 0000 - next digit
      0x20 : S6 Pressed  0010 0000 - Dec digit
@@ -160,8 +160,13 @@ void ELS::check_buttons()
     }
 
     if((buttons & 0x04) && !(last_buttons & 0x04)) {
-        // button 3 pressed, go back to 0
-        send_message_queue("G0 Z0", &os, false);
+        // button 3 pressed, Issue G33 Knnn Znnn
+        if(!lathe->is_running() && var1 > 0) {
+            std::string cmd("G33 K");
+            cmd.append(std::to_string(var1/10)).append(".").append(std::to_string(std::abs(var1%10)));
+            cmd.append(" Z20"); // FIXME need to get distance from var2
+            send_message_queue(cmd.c_str(), &os, false);
+        }
     }
 
     // digit edit select
