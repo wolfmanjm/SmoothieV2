@@ -220,7 +220,7 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
                 float frmms = (rpm / 60.0F) * dpr; // calculate_mmsec_from_RPM();
                 float last_rpm = rpm;
                 if(frmms > stepper_motor->get_max_rate()) {
-                    gcode.set_error("Current Spindle RPM means rate exceeds maximum");
+                    gcode.set_error("Current Spindle RPM means feed rate will exceed maximum");
                 } else {
                     if(index_pin == nullptr) {
                         gcode.set_error("Index pin is required for this function");
@@ -240,12 +240,12 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
 
                         // check spindle speed is within 5% of last reading
                         if(equal_within(last_rpm, rpm, last_rpm*5/100.0F)) {
-                            os.printf("last_rpm: %f, current rpm: %f, tolerance: %f\n", last_rpm, rpm, last_rpm*5/100.0F);
-                            gcode.set_error("Spindle speed stability was not within tolerance of 5%");
-                        } else {
                             // issue the move, note that this will accelerate and decelerate
                             THEDISPATCHER->dispatch(os, 'G', 1, 'F', frmms*60.0F, 'Z', distance, 0);
                             Conveyor::getInstance()->wait_for_idle();
+                        } else {
+                            os.printf("last_rpm: %f, current rpm: %f, tolerance: %f\n", last_rpm, rpm, last_rpm*5/100.0F);
+                            gcode.set_error("Spindle speed stability was not within 5%% tolerance");
                         }
                     }
                 }
