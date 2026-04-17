@@ -116,16 +116,11 @@ bool Lathe::rpm_cmd(std::string& params, OutputStream& os)
     return true;
 }
 
-#define _ramfunc_ __attribute__ ((section(".ramfunctions"),long_call,noinline))
-
 // return true if a and b are within the delta range of each other
-_ramfunc_
-static bool equal_within(float a, float b, float delta)
-{
-    float diff = a - b;
-    if (diff < 0) diff = -diff;
-    if (delta < 0) delta = -delta;
-    return (diff <= delta);
+template <typename T>
+    bool equal_within(const T& a, const T& b, const T& delta) {
+    float diff = std::abs(a - b);
+    return (diff <= std::abs(delta));
 }
 
 bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
@@ -194,8 +189,6 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
                 // We have to wait for this to complete
                 while(running && !Module::is_halted()) {
                     safe_sleep(100);
-                    // update DROs occasionally
-                    Robot::getInstance()->reset_position_from_current_actuator_position();
                     if(rpm == 0) {
                         os.printf("error: Spindle stopped running\n");
                         broadcast_halt(true);
@@ -211,12 +204,10 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             } else {
                 // an alternative to above method, which would be better for high speeds that require acceleration/deceleration,
                 // is to take the current RPM and insert as if a normal G1 Znnn Fxxx where xxx is calculated from RPM
-                // this will accelerate and decellerate, but if the spindle RPM changes then the thread would be incorrect
+                // this will accelerate and decelerate, but if the spindle RPM changes then the thread would be incorrect
                 // for turning this may be preferred. However it is not technically moving in sync with the spindle.
-                // It would however fix the current bug where the actual position appears to be incorrect.
                 // I think this is how linuxcnc does it as only an index pulse is required to calculate RPM. IE no
                 // expensive high resolution encoder is needed
-                // TODO may want to check the RPM is stable within tolerance
                 float frmms = (rpm / 60.0F) * dpr; // calculate_mmsec_from_RPM();
                 float last_rpm = rpm;
                 if(frmms > stepper_motor->get_max_rate()) {
@@ -269,8 +260,6 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
 
             while(!os.get_stop_request() && !Module::is_halted()) {
                 safe_sleep(100);
-                // update DROs occasionally
-                Robot::getInstance()->reset_position_from_current_actuator_position();
                 //printf("%f %ld\n", target_position, read_quadrature_encoder());
                 // if(rpm == 0) {
                 //     // also stop if spindle stops
@@ -408,6 +397,8 @@ float Lathe::calculate_position(int32_t cnt)
     float mm_per_rotation = 1.0F;
     return cnt / 100.0F * mm_per_rotation;
 }
+
+#define _ramfunc_ __attribute__ ((section(".ramfunctions"),long_call,noinline))
 
 // As these are called from the stepticker put them in RAM for faster execution
 _ramfunc_
