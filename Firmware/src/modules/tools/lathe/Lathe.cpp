@@ -270,7 +270,7 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             running = false;
             os.set_stop_request(false);
             // give it time to fully stop
-            safe_sleep(500);
+            safe_sleep(100);
             // reset the position based on current actuator position
             Robot::getInstance()->reset_position_from_current_actuator_position();
 
