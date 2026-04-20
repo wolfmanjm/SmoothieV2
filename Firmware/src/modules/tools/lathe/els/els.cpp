@@ -153,7 +153,7 @@ void ELS::check_buttons()
     if((buttons & 0x02) && !(last_buttons & 0x02)) {
         // button 2 pressed, start operation G33 K{var1} where var1 is interpreted as a fixed point nnn.f
         if(!lathe->is_running() && var1 > 0) {
-            std::string cmd("G33 K");
+            std::string cmd("G33.1 K");
             cmd.append(std::to_string(var1/10)).append(".").append(std::to_string(std::abs(var1%10)));
             send_message_queue(cmd.c_str(), &os, false);
         }
@@ -162,7 +162,7 @@ void ELS::check_buttons()
     if((buttons & 0x04) && !(last_buttons & 0x04)) {
         // button 3 pressed, Issue G33 Knnn Znnn
         if(!lathe->is_running() && var1 > 0) {
-            std::string cmd("G33 K");
+            std::string cmd("G33.1 K");
             cmd.append(std::to_string(var1/10)).append(".").append(std::to_string(std::abs(var1%10)));
             cmd.append(" Z20"); // FIXME need to get distance from var2
             send_message_queue(cmd.c_str(), &os, false);

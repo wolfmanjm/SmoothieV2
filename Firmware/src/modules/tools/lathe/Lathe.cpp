@@ -245,8 +245,9 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
         } else if(gcode.has_arg('X') || gcode.has_arg('Y')) {
             gcode.set_error("Only (Lathe) Z axis currently supported");
 
-        } else {
-            // NOTE this may be removed as it is not standard and may not be very accurate
+        } else if(gcode.get_subcode() == 1) {
+            // NOTE this may be removed as it is not standard but is usefull for testing by masnually turning the spindle
+            // plus it is more like the ELS way to do it.
             // no Z arg means manual mode where the half nut must be engaged and disengaged, control Y will stop it
             // K sets the mm per revolution
             end_pos = NAN;
@@ -272,6 +273,9 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             safe_sleep(500);
             // reset the position based on current actuator position
             Robot::getInstance()->reset_position_from_current_actuator_position();
+
+        } else {
+            gcode.set_error("Z axis required");
         }
 
         return true;
