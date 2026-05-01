@@ -9,7 +9,7 @@
 #include "benchmark_timer.h"
 
 const uint8_t CMD_NOOP = 0;
-const uint8_t CMD_DIGIT0 = 1; // Goes up to 8, for each line
+const uint8_t CMD_DIGIT0 = 1; // Goes up to 8, for each line, 0 is on the right
 const uint8_t CMD_DECODEMODE = 9;
 const uint8_t CMD_BRIGHTNESS = 10;
 const uint8_t CMD_SCANLIMIT = 11;
@@ -128,28 +128,27 @@ void MAX7129::display_int(int32_t num, bool leading_zeros)
 				write_register(CMD_DIGIT0 + i, 0);
 			}
 		} else {
-			write_register(CMD_DIGIT0 + 7, 0);
+			write_register(CMD_DIGIT0, 0);
 		}
 		return;
 	}
 
-	bool neg= false;
+	int ndigits = 8;
 	if(num < 0) {
 		num = -num;
-		write_register(CMD_DIGIT0, 0b1010); // display -
-		neg= true;
+		write_register(CMD_DIGIT0+7, 0b1010); // display -
+		ndigits = 7;
 	}
-	while (num && digit < 8) {
+	while (num && digit < ndigits) {
 		// start at right most digit and work to the left
-		write_register((CMD_DIGIT0+7) - digit, num % 10);
+		write_register(CMD_DIGIT0+digit, num % 10);
 		num /= 10;
 		digit++;
 	}
 
 	if(digit < 8) {
-		for (int i = digit; i < 8; i++) {
-			write_register((CMD_DIGIT0+7) - i, leading_zeros?0:255);
-			if(neg && i == 6) break;
+		for (int i = digit; i < ndigits; i++) {
+			write_register(CMD_DIGIT0+i, leading_zeros?0:0x0F);
 		}
 	}
 }
@@ -157,31 +156,31 @@ void MAX7129::display_int(int32_t num, bool leading_zeros)
 // display a float to 3dp
 void MAX7129::display_float3(float num)
 {
+	int ndigits = 8;
+	if(num < 0) {
+		num = -num;
+		write_register(CMD_DIGIT0+7, 0b1010); // display -
+		ndigits = 7;
+	}
 	float f = num + 0.00055555F; // round up 3dp
 	int32_t fi = f*1000; // take 3 dp and truncate
-	bool neg= false;
-	if(fi < 0) {
-		fi = -fi;
-		write_register(CMD_DIGIT0, 0b1010); // display -
-		neg= true;
-	}
 
 	// left most 3 digits are fraction
 	for (int i = 0; i < 3; ++i) {
-		write_register((CMD_DIGIT0+7) - i, fi % 10);
+		write_register(CMD_DIGIT0+i, fi % 10);
 		fi /= 10;
 	}
 
 	// next digit has decimal point
-	write_register((CMD_DIGIT0+7) - 3, (fi % 10) | 0x8000);
+	write_register(CMD_DIGIT0+3, (fi % 10) | 0x80);
 	fi /= 10;
 
-	for (int i = 4; i < (neg?7:8); ++i) {
+	for (int i = 4; i < ndigits; ++i) {
 		if(fi == 0) {
 			// blank rest of digits
-			write_register((CMD_DIGIT0+7) - i, 255);
+			write_register(CMD_DIGIT0+i, 0x0F);
 		} else {
-			write_register((CMD_DIGIT0+7) - i, fi % 10);
+			write_register(CMD_DIGIT0+i, fi % 10);
 			fi /= 10;
 		}
 	}
@@ -191,7 +190,7 @@ void MAX7129::display_float3(float num)
 void MAX7129::clear()
 {
 	for (int i = 0; i < 8; i++) {
-		write_register(CMD_DIGIT0 + i, 255);
+		write_register(CMD_DIGIT0 + i, 0x0F);
 	}
 }
 

@@ -1,3 +1,6 @@
+// build with...
+// rake testing=1 test=max7219 modules=utils/display/max7219 -m
+
 #include "../Unity/src/unity.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -26,7 +29,9 @@ mosi = PE8 \n\
 cs = PJ8 \n\
 ";
 
-REGISTER_TEST(MAX7129, run_tests)
+#define WAIT(tmo) { uint32_t st = benchmark_timer_start(); while(benchmark_timer_as_ms(benchmark_timer_elapsed(st)) < tmo); }
+
+REGISTER_TEST(MAX7129, run_int_tests)
 {
     // load config with required settings for this test
     std::stringstream ss(max7129_config);
@@ -39,16 +44,58 @@ REGISTER_TEST(MAX7129, run_tests)
     display.init();
     display.clear();
 
-    for (int i = 0; i < 999; ++i) {
+    printf("display 0\n");
+    display.display_int(0);
+    WAIT(3000);
+
+    printf("display 00000000\n");
+    display.display_int(0, true);
+    WAIT(3000);
+
+    printf("display 00000001\n");
+    display.display_int(1, true);
+    WAIT(3000);
+
+    printf("count up to 100\n");
+    for (int i = 0; i < 101; ++i) {
         display.display_int(i);
-        uint32_t st = benchmark_timer_start(); while(benchmark_timer_as_ms(benchmark_timer_elapsed(st)) < 100) ;
+        WAIT(100);
     }
 
+    printf("display 123\n");
+    display.display_int(123);
+    WAIT(5000) ;
+
+    printf("display -123\n");
     display.display_int(-123);
-    uint32_t st = benchmark_timer_start(); while(benchmark_timer_as_ms(benchmark_timer_elapsed(st)) < 1000) ;
+    WAIT(5000) ;
 
+    printf("display 12345678\n");
+    display.display_int(12345678);
+    WAIT(5000) ;
+
+    printf("display -1234567\n");
     display.display_int(-1234567);
-    st = benchmark_timer_start(); while(benchmark_timer_as_ms(benchmark_timer_elapsed(st)) < 1000) ;
+    WAIT(5000) ;
 
+    printf("display 101.234\n");
+    display.display_float3(101.234);
+    WAIT(5000) ;
+
+    printf("display -101.234\n");
+    display.display_float3(-101.234);
+    WAIT(5000) ;
+
+    printf("display 1.235\n");
+    display.display_float3(1.2345);
+    WAIT(5000) ;
+
+    printf("display 1.235\n");
+    display.display_float3(1.23445);
+    WAIT(5000) ;
+
+    printf("display 1.200\n");
+    display.display_float3(1.2);
+    WAIT(5000) ;
 
 }
