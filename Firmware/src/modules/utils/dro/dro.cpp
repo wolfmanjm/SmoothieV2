@@ -9,6 +9,8 @@
 #include "main.h"
 #include "OutputStream.h"
 #include "MessageQueue.h"
+#include "Robot.h"
+#include "StepperMotor.h"
 
 #include <cmath>
 #include <string>
@@ -58,13 +60,14 @@ bool DRO::configure(ConfigReader& cr)
 
         auto& m = i.second;
         if(!cr.get_bool(m, enable_key, true)) continue; // skip if not enabled
-        std::string p = cr.get_string(m, cs_pin_key, "nc");
 
-        if(p.find_first_of("xyzabc") == p.npos) {
-            printf("ERROR: configure-dro: axis %s is not one of xyzabc\n", p.c_str());
+        // check it is a valid axis designation
+        if(name.find_first_of("xyzabc") == name.npos) {
+            printf("ERROR: configure-dro: axis %s is not one of xyzabc\n", name.c_str());
             continue;
         }
-        axis_map[p] = -1;
+        std::string p = cr.get_string(m, cs_pin_key, "nc");
+        axis_cs[name] = p;
         ++cnt;
     }
 
@@ -75,8 +78,8 @@ bool DRO::configure(ConfigReader& cr)
         // (as this module relies on the max7219 module having been loaded)
         register_startup(std::bind(&DRO::after_load, this));
 
-        // start up timers
-        SlowTicker::getInstance()->attach(10, std::bind(&DRO::update_display, this));
+        // start up timer
+        SlowTicker::getInstance()->attach(poll_freq, std::bind(&DRO::update_display, this));
     }
 
     return true;
@@ -98,14 +101,56 @@ void DRO::after_load()
         return;
     }
 
-    // create instances each with its own CS pin
-    // int id1 = display.add_instance(x_cs);
-    // int id2 = display.add_instance(y_cs);
+    // create instances for each axis with its own CS pin
+    for(auto& i : axis_cs) {
+        std::string a = i.first;
+        const char *pin= i.second.c_str();
+        int id = display->add_instance(pin);
+        if(id >= 0) {
+            axis_map[a] = id;
+            display->lock();
+            display->clear(id);
+            display->unlock();
+            printf("DEBUG: DRO added axis %s with cs pin %s\n", a.c_str(), pin);
 
-        // display->lock();
-        // display->clear(i);
-        // display->unlock();
-
+        } else {
+            printf("ERROR: DRO display axis %s CS pin is not valid: %s\n", a.c_str(), pin);
+        }
+    }
+    axis_cs.clear(); // no longer needed
     started= true;
 }
 
+void DRO::update_display()
+{
+    if(!started) return;
+
+    float mpos[3];
+    Robot::getInstance()->get_current_machine_position(mpos);
+    // convert to work space position
+    Robot::wcs_t pos = Robot::getInstance()->mcs2wcs(mpos);
+    mpos[0] = Robot::getInstance()->from_millimeters(std::get<X_AXIS>(pos));
+    mpos[1] = Robot::getInstance()->from_millimeters(std::get<Y_AXIS>(pos));
+    mpos[2] = Robot::getInstance()->from_millimeters(std::get<Z_AXIS>(pos));
+
+    for(auto& i : axis_map) {
+        std::string a = i.first;
+        int id = i.second;
+        int n = 'x' - a[0];
+        if(n >= 0 && n <= 2) {
+            float p = mpos[n];
+            display->display_float3(id, p);
+        }
+#if MAX_ROBOT_ACTUATORS > 3
+        else {
+            // deal with the ABC axis (E will be A)
+            n = 'a' - a[0];
+            if(n >= 0 && n <= Robot::getInstance()->get_number_registered_motors()-4) {
+                // current actuator position
+                float p = Robot::getInstance()->actuators[n+3]->get_current_position();
+                display->display_float3(id, p);
+            }
+        }
+#endif
+    }
+}
