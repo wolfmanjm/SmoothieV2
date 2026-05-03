@@ -3,7 +3,7 @@
  * Ported from the example for pico...
  */
 
-#include "max7129.h"
+#include "max7219.h"
 #include "ConfigReader.h"
 #include "Pin.h"
 #include "benchmark_timer.h"
@@ -25,25 +25,25 @@ const uint8_t CMD_DISPLAYTEST = 15;
 #define clk_pin_key "clk"
 #define mosi_pin_key "mosi"
 
-REGISTER_MODULE(MAX7129, MAX7129::create)
+REGISTER_MODULE(MAX7219, MAX7219::create)
 
-bool MAX7129::create(ConfigReader& cr)
+bool MAX7219::create(ConfigReader& cr)
 {
-    printf("DEBUG: configure MAX7129 display\n");
-    MAX7129 *st = new MAX7129();
+    printf("DEBUG: configure MAX7219 display\n");
+    MAX7219 *st = new MAX7219();
     if(!st->configure(cr)) {
-        printf("INFO: MAX7129 not enabled\n");
+        printf("INFO: MAX7219 not enabled\n");
         delete st;
     }
     return true;
 }
 
-MAX7129::MAX7129() : Module("max7129")
+MAX7219::MAX7219() : Module("max7219")
 {
     plock= (void*)xSemaphoreCreateMutex();
 }
 
-MAX7129::~MAX7129()
+MAX7219::~MAX7219()
 {
     if(clk != nullptr) {
         delete clk;
@@ -61,10 +61,10 @@ MAX7129::~MAX7129()
     }
 }
 
-bool MAX7129::configure(ConfigReader& cr)
+bool MAX7219::configure(ConfigReader& cr)
 {
     ConfigReader::section_map_t m;
-    if(!cr.get_section("max7129", m)) return false;
+    if(!cr.get_section("max7219", m)) return false;
 
     if(!cr.get_bool(m, enable_key, false)) {
         return false;
@@ -73,36 +73,36 @@ bool MAX7129::configure(ConfigReader& cr)
     std::string clk_pin = cr.get_string(m, clk_pin_key, "nc");
     clk = new Pin(clk_pin.c_str(), Pin::AS_OUTPUT_OFF); // set low on creation
     if(!clk->connected()) {
-        printf("ERROR:config_max7129: spi clk pin %s is invalid\n", clk_pin.c_str());
+        printf("ERROR:config_max7219: spi clk pin %s is invalid\n", clk_pin.c_str());
         return false;
     }
-    printf("DEBUG:config_max7129: spi clk pin: %s\n", clk->to_string().c_str());
+    printf("DEBUG:config_max7219: spi clk pin: %s\n", clk->to_string().c_str());
 
     std::string mosi_pin = cr.get_string(m, mosi_pin_key, "nc");
     mosi = new Pin(mosi_pin.c_str(), Pin::AS_OUTPUT_OFF); // set low on creation
     if(!mosi->connected()) {
-        printf("ERROR:config_max7129: spi mosi pin %s is invalid\n", mosi_pin.c_str());
+        printf("ERROR:config_max7219: spi mosi pin %s is invalid\n", mosi_pin.c_str());
         return false;
     }
-    printf("DEBUG:config_max7129: spi mosi pin: %s\n", mosi->to_string().c_str());
+    printf("DEBUG:config_max7219: spi mosi pin: %s\n", mosi->to_string().c_str());
 
     return true;
 }
 
-int MAX7129::add_instance(const char *cs_pin)
+int MAX7219::add_instance(const char *cs_pin)
 {
     Pin *cs = new Pin(cs_pin, Pin::AS_OUTPUT_ON); // set high on creation
     if(!cs->connected()) {
-        printf("ERROR:max7129.add_instance(): spi cs pin %s is invalid\n", cs_pin);
+        printf("ERROR:max7219.add_instance(): spi cs pin %s is invalid\n", cs_pin);
         return -1;
     }
     int id = cs_list.size();
     cs_list.push_back(cs);
-    printf("DEBUG:max7129.add_instance(): id %d, cs pin: %s\n", id, cs->to_string().c_str());
+    printf("DEBUG:max7219.add_instance(): id %d, cs pin: %s\n", id, cs->to_string().c_str());
     return id;
 }
 
-bool MAX7129::lock()
+bool MAX7219::lock()
 {
     if(plock != nullptr) {
         // take lock
@@ -115,7 +115,7 @@ bool MAX7129::lock()
     return true;
 }
 
-void MAX7129::unlock()
+void MAX7219::unlock()
 {
     if(plock != nullptr) {
         // release lock
@@ -130,7 +130,7 @@ static inline void wait_ns(uint32_t ns)
     while(benchmark_timer_as_ns(benchmark_timer_elapsed(st)) < ns) ;
 }
 
-void MAX7129::spi_write(uint16_t v)
+void MAX7219::spi_write(uint16_t v)
 {
     for (int b = 15; b >= 0; --b) {
         mosi->set(((v >> b) & 0x01) != 0);
@@ -142,12 +142,12 @@ void MAX7129::spi_write(uint16_t v)
     }
 }
 
-void MAX7129::cs_select(int id, bool flg)
+void MAX7219::cs_select(int id, bool flg)
 {
 	cs_list[id]->set(!flg);
 }
 
-void MAX7129::write_register(int id, uint8_t reg, uint8_t data)
+void MAX7219::write_register(int id, uint8_t reg, uint8_t data)
 {
 	cs_select(id, true);
 	spi_write((reg<<8) | data);
@@ -159,7 +159,7 @@ void MAX7129::write_register(int id, uint8_t reg, uint8_t data)
 // if negative displays '-' in first digit
 // if leading_zeroes is true then 0 is displayed in left digits
 // otherwise blanks
-void MAX7129::display_int(int id, int32_t num, bool leading_zeros)
+void MAX7219::display_int(int id, int32_t num, bool leading_zeros)
 {
 	if(id < 0 || id >= (int)cs_list.size()) return;
 
@@ -196,7 +196,7 @@ void MAX7129::display_int(int id, int32_t num, bool leading_zeros)
 }
 
 // display a float to 3dp
-void MAX7129::display_float3(int id, float num)
+void MAX7219::display_float3(int id, float num)
 {
 	if(id < 0 || id >= (int)cs_list.size()) return;
 
@@ -231,7 +231,7 @@ void MAX7129::display_float3(int id, float num)
 }
 
 // blanks display
-void MAX7129::clear(int id)
+void MAX7219::clear(int id)
 {
 	if(id < 0 || id >= (int)cs_list.size()) return;
 
@@ -240,7 +240,7 @@ void MAX7129::clear(int id)
 	}
 }
 
-void MAX7129::init()
+void MAX7219::init()
 {
 	for (int i = 0; i < (int)cs_list.size(); ++i) {
 		// Send init sequence to devices

@@ -4,17 +4,16 @@
 #include "Pin.h"
 
 #include <vector>
-#include <map>
 
 class ConfigReader;
 
-class MAX7129 : public Module
+class MAX7219 : public Module
 {
 
 public:
     // Constructor
-    MAX7129();
-    virtual ~MAX7129();
+    MAX7219();
+    virtual ~MAX7219();
 
     static bool create(ConfigReader& cr);
     bool configure(ConfigReader& cr);

@@ -2,6 +2,9 @@
 
 #include "Module.h"
 
+#include <string>
+#include <map>
+
 class MAX7219;
 
 class DRO : public Module {
@@ -15,4 +18,8 @@ class DRO : public Module {
 
         MAX7219 *display{nullptr};
         bool started{false};
+        uint32_t poll_freq;
+
+        std::map<std::string, int> axis_map;
+
 };

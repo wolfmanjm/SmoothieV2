@@ -14,15 +14,15 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-#include "max7129.h" //include the module
+#include "max7219.h" //include the module
 #include "ConfigReader.h"
 #include "benchmark_timer.h"
 
-MAX7129 display;
+MAX7219 display;
 
 // define config here, this is in the same format they would appear in the config.ini file
-const static char max7129_config[]= "\
-[max7129]\n\
+const static char max7219_config[]= "\
+[max7219]\n\
 enable = true \n\
 clk = PJ7 \n\
 mosi = PE8 \n\
@@ -33,14 +33,14 @@ const static char *y_cs = "PD15";
 
 #define WAIT(tmo) { uint32_t st = benchmark_timer_start(); while(benchmark_timer_as_ms(benchmark_timer_elapsed(st)) < tmo); }
 
-REGISTER_TEST(MAX7129, run_int_tests)
+REGISTER_TEST(MAX7219, run_int_tests)
 {
     // load config with required settings for this test
-    std::stringstream ss(max7129_config);
+    std::stringstream ss(max7219_config);
     ConfigReader cr(ss);
     TEST_ASSERT_TRUE(display.configure(cr));
 
-    Module *m= Module::lookup("max7129");
+    Module *m= Module::lookup("max7219");
     TEST_ASSERT_NOT_NULL(m);
 
     // create instances each with its own CS pin
