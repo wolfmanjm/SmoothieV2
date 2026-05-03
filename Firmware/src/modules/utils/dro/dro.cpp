@@ -94,9 +94,6 @@ void DRO::after_load()
     Module *v= Module::lookup("max7219");
     if(v != nullptr) {
         display=  static_cast<MAX7219*>(v);
-        display->init();
-
-        printf("DEBUG: DRO MAX7219 display started\n");
     }else{
         printf("ERROR: DRO MAX7219 display is not available\n");
         return;
@@ -108,17 +105,23 @@ void DRO::after_load()
         const char *pin= i.second.c_str();
         int id = display->add_instance(pin);
         if(id >= 0) {
-            axis_map[a] = id;
-            display->lock();
+            char c = a[0];
+            int n = c - 'x';
+            if(n < 0) n = c - 'a';
+            axis_map[n] = id;
+            //display->lock();
             display->clear(id);
-            display->unlock();
-            printf("DEBUG: DRO added axis %s with cs pin %s\n", a.c_str(), pin);
+            //display->unlock();
+            printf("DEBUG: DRO added axis %s (%d) with cs pin %s\n", a.c_str(), n, pin);
 
         } else {
             printf("ERROR: DRO display axis %s CS pin is not valid: %s\n", a.c_str(), pin);
         }
     }
     axis_cs.clear(); // no longer needed
+    display->init();
+    printf("DEBUG: DRO MAX7219 display started\n");
+
     started= true;
 }
 
@@ -135,20 +138,18 @@ void DRO::update_display()
     mpos[2] = Robot::getInstance()->from_millimeters(std::get<Z_AXIS>(pos));
 
     for(auto& i : axis_map) {
-        std::string a = i.first;
+        int a = i.first;
         int id = i.second;
-        int n = 'x' - a[0];
-        if(n >= 0 && n <= 2) {
-            float p = mpos[n];
+        if(a >= X_AXIS && a <= Z_AXIS) {
+            float p = mpos[a];
             display->display_float3(id, p);
         }
 #if MAX_ROBOT_ACTUATORS > 3
         else {
             // deal with the ABC axis (E will be A)
-            n = 'a' - a[0];
-            if(n >= 0 && n <= Robot::getInstance()->get_number_registered_motors()-4) {
+            if(a >= A_AXIS && a < Robot::getInstance()->get_number_registered_motors()) {
                 // current actuator position
-                float p = Robot::getInstance()->actuators[n+3]->get_current_position();
+                float p = Robot::getInstance()->actuators[a]->get_current_position();
                 display->display_float3(id, p);
             }
         }

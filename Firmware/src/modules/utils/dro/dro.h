@@ -22,6 +22,5 @@ class DRO : public Module {
         uint32_t poll_freq;
 
         std::map<std::string, std::string> axis_cs;
-        std::map<std::string, int> axis_map;
-
+        std::map<int, int> axis_map;
 };
