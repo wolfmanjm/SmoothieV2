@@ -26,6 +26,10 @@ public:
     void clear(int id);
     void init();
 
+    // Mutex to stop concurrent access, the caller is responsible for locking and unlocking access
+    bool lock();
+    void unlock();
+
 private:
     void spi_write(uint16_t b);
     void write_register(int id, uint8_t reg, uint8_t data);
@@ -33,4 +37,5 @@ private:
     Pin *clk{nullptr};
     Pin *mosi{nullptr};
     std::vector<Pin *> cs_list;
+    void *plock{nullptr};
 };

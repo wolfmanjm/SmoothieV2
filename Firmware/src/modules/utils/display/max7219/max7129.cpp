@@ -8,6 +8,10 @@
 #include "Pin.h"
 #include "benchmark_timer.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+
 const uint8_t CMD_NOOP = 0;
 const uint8_t CMD_DIGIT0 = 1; // Goes up to 8, for each line, 0 is on the right
 const uint8_t CMD_DECODEMODE = 9;
@@ -36,6 +40,7 @@ bool MAX7129::create(ConfigReader& cr)
 
 MAX7129::MAX7129() : Module("max7129")
 {
+    plock= (void*)xSemaphoreCreateMutex();
 }
 
 MAX7129::~MAX7129()
@@ -50,6 +55,9 @@ MAX7129::~MAX7129()
 	    if(cs != nullptr) {
 	        delete cs;
     	}
+    }
+    if(plock != nullptr) {
+        vSemaphoreDelete(plock);
     }
 }
 
@@ -92,6 +100,27 @@ int MAX7129::add_instance(const char *cs_pin)
     cs_list.push_back(cs);
     printf("DEBUG:max7129.add_instance(): id %d, cs pin: %s\n", id, cs->to_string().c_str());
     return id;
+}
+
+bool MAX7129::lock()
+{
+    if(plock != nullptr) {
+        // take lock
+        uint32_t t= 0; // pdMS_TO_TICKS(10);
+        if(xSemaphoreTake(plock, t) != pdTRUE) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void MAX7129::unlock()
+{
+    if(plock != nullptr) {
+        // release lock
+        xSemaphoreGive(plock);
+    }
 }
 
 // use benchmark timer as it has the resolution needed
