@@ -40,13 +40,14 @@ bool DRO::configure(ConfigReader& cr)
 {
     ConfigReader::sub_section_map_t ssmap;
     if(!cr.get_sub_sections("dro", ssmap)) {
-        printf("INFO: configure-dro: no button box section found\n");
+        printf("INFO: configure-dro: no dro section found\n");
         return false;
     }
 
     auto s = ssmap.find("common");
     if(s != ssmap.end()) {
         auto& mm = s->second; // map of common config settings
+        if(!cr.get_bool(mm, enable_key, true)) return false; // exit if not enabled
         poll_freq = cr.get_int(mm, poll_freq_key, 10);
         printf("INFO: configure-dro: poll freq set to %ld hz\n", poll_freq);
     }
