@@ -15,9 +15,11 @@
 #include <cmath>
 #include <string>
 #include <iostream>
+#include <ctype.h>
 
 #define enable_key "enable"
 #define cs_pin_key "cs_pin"
+#define id_key "id"
 #define poll_freq_key "poll_frequency_hz"
 
 REGISTER_MODULE(DRO, DRO::create)
@@ -67,7 +69,13 @@ bool DRO::configure(ConfigReader& cr)
             printf("ERROR: configure-dro: axis %s is not one of xyzabc\n", name.c_str());
             continue;
         }
-        std::string p = cr.get_string(m, cs_pin_key, "nc");
+
+        // get axis id or cs pin (id takes precedence)
+        std::string p = cr.get_string(m, id_key, "");
+        if(p.empty()) {
+            // try cs_pin
+            p = cr.get_string(m, cs_pin_key, "nc");
+        }
         axis_cs[name] = p;
         ++cnt;
     }
@@ -86,6 +94,13 @@ bool DRO::configure(ConfigReader& cr)
     return true;
 }
 
+static bool is_number(const char *s) {
+    for (uint i = 0; i < strlen(s); ++i) {
+        if(!isdigit(s[i])) return false;
+    }
+    return strlen(s) > 0;
+}
+
 void DRO::after_load()
 {
     printf("DEBUG: DRO post config running...\n");
@@ -99,11 +114,25 @@ void DRO::after_load()
         return;
     }
 
-    // create instances for each axis with its own CS pin
+    // create instances for each axis with its oown cs or id depending if cascaded or not
     for(auto& i : axis_cs) {
         std::string a = i.first;
         const char *pin= i.second.c_str();
-        int id = display->add_instance(pin);
+        int id= -1;
+        if(display->is_cascaded()) {
+            // specify the id of the module for each axis if cascaded
+            if(is_number(pin)) {
+                id = atoi(pin);
+            } else {
+                printf("ERROR: DRO display axis %s id is not a number: %s\n", a.c_str(), pin);
+                continue;
+            }
+
+        } else {
+            // specify the cs pin of the module for each axis if not cascaded
+            id = display->add_instance(pin);
+        }
+
         if(id >= 0) {
             char c = a[0];
             int n = c - 'x';
@@ -112,13 +141,17 @@ void DRO::after_load()
             //display->lock();
             display->clear(id);
             //display->unlock();
-            printf("DEBUG: DRO added axis %s (%d) with cs pin %s\n", a.c_str(), n, pin);
-
+            if(display->is_cascaded()) {
+                printf("DEBUG: DRO added axis %s (%d) with id %d\n", a.c_str(), n, id);
+            } else {
+                printf("DEBUG: DRO added axis %s (%d) with cs pin %s\n", a.c_str(), n, pin);
+            }
         } else {
             printf("ERROR: DRO display axis %s CS pin is not valid: %s\n", a.c_str(), pin);
         }
     }
     axis_cs.clear(); // no longer needed
+
     display->init();
     printf("DEBUG: DRO MAX7219 display started\n");
 

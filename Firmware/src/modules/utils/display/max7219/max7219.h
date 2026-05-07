@@ -24,6 +24,7 @@ public:
 
     void clear(int id);
     void init();
+    bool is_cascaded() const { return cascaded != 0; }
 
     // Mutex to stop concurrent access, the caller is responsible for locking and unlocking access
     bool lock();
@@ -31,8 +32,11 @@ public:
 
 private:
     void spi_write(uint16_t b);
+    void write_register_to(int disp, uint8_t reg, uint8_t data);
     void write_register(int id, uint8_t reg, uint8_t data);
+
     void cs_select(int id, bool flg);
+    int cascaded{0};
     Pin *clk{nullptr};
     Pin *mosi{nullptr};
     std::vector<Pin *> cs_list;
