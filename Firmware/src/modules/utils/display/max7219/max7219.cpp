@@ -177,12 +177,8 @@ void MAX7219::cs_select(int id, bool flg)
 // write to specified display, the other displays get NOP
 void MAX7219::write_register_to(int disp, uint8_t reg, uint8_t data)
 {
-    if(cascaded == 0) {
-        printf("ERROR: max7219.write_register_to cannot be called for non-cascaded displays\n");
-        return;
-    }
-
     cs_select(0, true);
+    wait_ns(25);
     for (int i = cascaded - 1; i >= 0; --i) {
         if(disp == i) {
             spi_write((reg << 8) | data);
@@ -190,15 +186,22 @@ void MAX7219::write_register_to(int disp, uint8_t reg, uint8_t data)
             spi_write(CMD_NOOP);
         }
     }
+    wait_ns(50);
     cs_select(0, false);
+    wait_ns(50);
+    clk->set(true);
+    wait_ns(50);
+    clk->set(false);
     wait_ns(50);
 }
 
 void MAX7219::write_register(int id, uint8_t reg, uint8_t data)
 {
     if(cascaded > 0) {
+        if(id >= cascaded) return;
         write_register_to(id, reg, data);
     } else {
+        if(id < 0 || id >= (int)cs_list.size()) return;
         cs_select(id, true);
         spi_write((reg << 8) | data);
         cs_select(id, false);
@@ -212,12 +215,6 @@ void MAX7219::write_register(int id, uint8_t reg, uint8_t data)
 // otherwise blanks
 void MAX7219::display_int(int id, int32_t num, bool leading_zeros)
 {
-    if(cascaded > 0) {
-        if(id < 0 || id >= cascaded) return;
-    } else {
-        if(id < 0 || id >= (int)cs_list.size()) return;
-    }
-
     int digit = 0;
     if(num == 0) {
         if(leading_zeros) {
@@ -253,13 +250,6 @@ void MAX7219::display_int(int id, int32_t num, bool leading_zeros)
 // display a float to 3dp
 void MAX7219::display_float3(int id, float num)
 {
-    if(cascaded > 0) {
-        if(id < 0 || id >= cascaded) return;
-    } else {
-        if(id < 0 || id >= (int)cs_list.size()) return;
-    }
-
-
     int ndigits = 8;
     if(num < 0) {
         num = -num;
@@ -293,12 +283,6 @@ void MAX7219::display_float3(int id, float num)
 // blanks display
 void MAX7219::clear(int id)
 {
-    if(cascaded > 0) {
-        if(id < 0 || id >= cascaded) return;
-    } else {
-        if(id < 0 || id >= (int)cs_list.size()) return;
-    }
-
     for (int i = 0; i < 8; i++) {
         write_register(id, CMD_DIGIT0 + i, 0x0F);
     }

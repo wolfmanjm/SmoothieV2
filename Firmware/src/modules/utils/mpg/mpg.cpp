@@ -1,3 +1,9 @@
+/*
+    FIXME this needs to accumulate encoder steps and issue deltamove() based on resolution and encoder pulses per rev
+    and also be able to specify mm per pulse with a command.
+    Cannot use manual step then do reset_position_from_current_actuator_position() as that introduces accumulated position error
+*/
+
 #include "mpg.h"
 
 #include "ConfigReader.h"
