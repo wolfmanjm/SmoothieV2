@@ -189,10 +189,6 @@ void MAX7219::write_register_to(int disp, uint8_t reg, uint8_t data)
     wait_ns(50);
     cs_select(0, false);
     wait_ns(50);
-    clk->set(true);
-    wait_ns(50);
-    clk->set(false);
-    wait_ns(50);
 }
 
 void MAX7219::write_register(int id, uint8_t reg, uint8_t data)

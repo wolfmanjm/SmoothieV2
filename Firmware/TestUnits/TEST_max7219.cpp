@@ -92,7 +92,7 @@ REGISTER_TEST(MAX7219, run_int_tests)
     printf("count up to 100\n");
     for (int i = 0; i < 101; ++i) {
         display.display_int(id1, i);
-        display.display_int(id2, i);
+        display.display_int(id2, i+100);
         WAIT(100);
     }
 
