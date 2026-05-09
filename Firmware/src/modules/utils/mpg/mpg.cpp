@@ -1,9 +1,3 @@
-/*
-    FIXME this needs to accumulate encoder steps and issue deltamove() based on resolution and encoder pulses per rev
-    and also be able to specify mm per pulse with a command.
-    Cannot use manual step then do reset_position_from_current_actuator_position() as that introduces accumulated position error
-*/
-
 #include "mpg.h"
 
 #include "ConfigReader.h"
@@ -22,10 +16,13 @@
 #include "task.h"
 #include "semphr.h"
 
+#include <cmath>
+
 #define enable_key "enable"
 #define enca_pin_key "enca_pin"
 #define encb_pin_key "encb_pin"
-#define axis_key "axis"
+#define ppr_key "ppr"
+#define mmpp_key "mmperpulse"
 
 REGISTER_MODULE(MPG, MPG::create)
 
@@ -46,7 +43,7 @@ bool MPG::create(ConfigReader& cr)
         auto& m = i.second;
         if(cr.get_bool(m, enable_key, false)) {
             MPG *t = new MPG();
-            if(t->configure(cr, m, name.c_str())) {
+            if(t->configure(cr, m, name)) {
                 ++cnt;
             } else {
                 printf("WARNING: failed to configure MPG %s\n", name.c_str());
@@ -63,15 +60,43 @@ MPG::MPG() : Module("mpg")
 {
 }
 
-bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const char *name)
+bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std::string& name)
 {
-    int a = cr.get_int(m, axis_key, -1);
-    if(a < 0 || a > 5) {
-        printf("ERROR: configure-mpg %s: axis must be configured and be 0-5\n", name);
+    // foreach axis, name needs to be x,y,z,a,b,c
+    // check it is a valid axis designation
+    if(name.size() != 1 || name.find_first_of("xyzabc") == name.npos) {
+        printf("ERROR: configure-dro: axis %s is not one of xyzabc\n", name.c_str());
         return false;
     }
 
-    axis = a;
+    // convert to axis 0-5
+    char c = name[0];
+    int n = c - 'x';
+    if(n < 0) n = c - 'a';
+    if(n >= X_AXIS && n < Robot::getInstance()->get_number_registered_motors()) {
+        axis = n;
+    } else {
+        printf("ERROR: configure-dro: illegal axis %s, %d\n", name.c_str(), n);
+        return false;
+    }
+
+    ppr = cr.get_int(m, ppr_key, -1);
+    if(ppr <= 0) {
+        printf("ERROR: configure-mpg %s: ppr cannot be less than zero\n", name.c_str());
+        return false;
+    }
+
+    // see if a default mm per puklse is defined
+    mm_per_pulse = cr.get_float(m, mmpp_key, -1);
+    if(mm_per_pulse <= 0) {
+        // calculate the default by using the minimum resolution of the axis to 4 dp
+        float spmm = Robot::getInstance()->actuators[axis]->get_steps_per_mm();
+        mm_per_pulse = 1.0F / spmm;
+        // round to 4dp
+        float f = mm_per_pulse + 0.000055555F; // round up 4dp
+        mm_per_pulse = ((float)((int)(f * 10000.0F))) / 10000.0F; // take 4 dp and truncate
+    }
+    printf("INFO: configure-mpg %s: mm per pulse is set to %1.4f\n", name.c_str(), mm_per_pulse);
 
     // pin1 and pin2 must be interrupt capable pins that have not already got interrupts assigned for that line number
     Pin *pin1, *pin2;
@@ -80,7 +105,7 @@ bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const char
 
     enc = new RotaryEncoder(*pin1, *pin2, std::bind(&MPG::handle_change, this));
     if(!enc->setup()) {
-        printf("ERROR: configure-mpg %s: enca and/or encb pins are not valid interrupt pins\n", name);
+        printf("ERROR: configure-mpg %s: enca and/or encb pins are not valid interrupt pins\n", name.c_str());
         delete pin1;
         delete pin2;
         delete enc;
@@ -97,13 +122,24 @@ bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const char
     return true;
 }
 
-// this gets called in command thread
-// used to avoid concurrent access to reset_position_from_current_actuator_position()
+// this gets called in command thread to issue the delta_move()
 void MPG::in_command_ctx(bool idle)
 {
-    if(!position_changed) return;
-    Robot::getInstance()->reset_position_from_current_actuator_position();
-    position_changed = false;
+    // get any accumulated encoder movement
+    int32_t d = delta_change.exchange(0);
+    if(d == 0) return;
+
+    int n_motors = Robot::getInstance()->get_number_registered_motors();
+    float delta[n_motors];
+    for (int i = 0; i < n_motors; ++i) {
+        delta[i] = NAN;
+    }
+
+    // amount to move
+    delta[axis] = d * mm_per_pulse;
+    // always move at the maximum rate for the axis
+    float fr = Robot::getInstance()->actuators[axis]->get_max_rate();
+    Robot::getInstance()->delta_move(delta, fr, n_motors);
 }
 
 void MPG::vHandlerTask(void *instance)
@@ -142,20 +178,7 @@ void MPG::check_encoder()
         int32_t d = sign * delta;
 
         if(d != 0) {
-            // we do not want to do this if we are running anything in block queue
-            if(!Conveyor::getInstance()->is_idle()) {
-                // ignore it
-                return;
-            }
-
-            bool dir = (d > 0);
-            for (int i = 0; i < std::abs(d); ++i) {
-                Robot::getInstance()->actuators[axis]->manual_step(dir);
-            }
-
-            // reset the position based on current actuator position
-            position_changed = true;
-            // printf("enc %lu, delta: %ld\n", cnt, d);
+            delta_change += d;
         }
     }
 }
@@ -171,13 +194,14 @@ void MPG::handle_change()
     example config.ini entry:-
 
     [mpg]
-    xaxis.enable = true
-    xaxis.enca_pin = PF10^  # must be an interrupt pin that the line number (10) is unused
-    xaxis.encb_pin = PF6^   # must be an interrupt pin that the line number (6) is unused
-    xaxis.axis = 0
+    x.enable = true
+    x.enca_pin = PF10^  # must be an interrupt pin that the line number (10) is unused
+    x.encb_pin = PF6^   # must be an interrupt pin that the line number (6) is unused
+    x.ppr = 100         # pulses per revolution
+    x.mmperpulse = 0.01 # optionally set the default mm per pulse to move defaults to resolution of axis
 
-    yaxis.enable = true
-    yaxis.enca_pin = PA3^
-    yaxis.encb_pin = PA4^
-    yaxis.axis = 1
+    y.enable = true
+    y.enca_pin = PA3^
+    y.encb_pin = PA4^
+    y.ppr = 100         # pulses per revolution
 */

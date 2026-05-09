@@ -65,7 +65,7 @@ bool DRO::configure(ConfigReader& cr)
         if(!cr.get_bool(m, enable_key, true)) continue; // skip if not enabled
 
         // check it is a valid axis designation
-        if(name.find_first_of("xyzabc") == name.npos) {
+        if(name.size() != 1 || name.find_first_of("xyzabc") == name.npos) {
             printf("ERROR: configure-dro: axis %s is not one of xyzabc\n", name.c_str());
             continue;
         }

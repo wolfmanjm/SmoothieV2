@@ -5,6 +5,7 @@
 #include "ConfigReader.h"
 
 #include <string>
+#include <atomic>
 
 class GCode;
 class OutputStream;
@@ -17,15 +18,17 @@ class MPG : public Module {
         virtual void in_command_ctx(bool idle);
 
     private:
-        bool configure(ConfigReader& cr, ConfigReader::section_map_t& m, const char *name);
+        bool configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std::string& name);
         bool handle_cmd(std::string& params, OutputStream& os);
         void handle_change();
         static void vHandlerTask(void *pvParameters);
         void check_encoder();
 
+        float mm_per_pulse;
+        uint32_t ppr{100};
         uint8_t axis;
         void *xBinarySemaphore;
         RotaryEncoder *enc;
         volatile uint32_t last_count{0};
-        volatile bool position_changed{false};
+        std::atomic_int32_t delta_change;
 };

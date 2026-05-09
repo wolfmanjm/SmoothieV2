@@ -300,3 +300,23 @@ void MAX7219::init()
         clear(i);
     }
 }
+
+/*
+    example config.ini entry:-
+
+# for cascaded modules...
+[max7219]
+enable = false
+clk = PJ7
+mosi = PE8
+cascaded = 3
+cs = PJ8
+
+# for modules with a chip select each... Caller specifies cs pin
+[max7219]
+enable = false
+clk = PJ7
+mosi = PE8
+
+
+*/
