@@ -13,21 +13,18 @@ class RotaryEncoder;
 
 class MPG : public Module {
     public:
-        MPG();
+        MPG(const char *name);
         static bool create(ConfigReader& cr);
         virtual void in_command_ctx(bool idle);
 
     private:
         bool configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std::string& name);
         bool handle_cmd(std::string& params, OutputStream& os);
-        void handle_change();
-        static void vHandlerTask(void *pvParameters);
         void check_encoder();
 
         float mm_per_pulse;
         uint32_t ppr{100};
         uint8_t axis;
-        void *xBinarySemaphore;
         RotaryEncoder *enc;
         volatile uint32_t last_count{0};
         std::atomic_int32_t delta_change;

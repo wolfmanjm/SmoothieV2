@@ -12,10 +12,6 @@
 #include "StepperMotor.h"
 #include "Conveyor.h"
 
-#include "FreeRTOS.h"
-#include "task.h"
-#include "semphr.h"
-
 #include <cmath>
 
 #define enable_key "enable"
@@ -42,7 +38,7 @@ bool MPG::create(ConfigReader& cr)
         std::string name = i.first;
         auto& m = i.second;
         if(cr.get_bool(m, enable_key, false)) {
-            MPG *t = new MPG();
+            MPG *t = new MPG(name.c_str());
             if(t->configure(cr, m, name)) {
                 ++cnt;
             } else {
@@ -56,10 +52,11 @@ bool MPG::create(ConfigReader& cr)
     return cnt > 0;
 }
 
-MPG::MPG() : Module("mpg")
+MPG::MPG(const char *name) : Module("mpg", name)
 {
 }
 
+// configure each instance of MPG, one instance per axis under control
 bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std::string& name)
 {
     // foreach axis, name needs to be x,y,z,a,b,c
@@ -80,13 +77,13 @@ bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std:
         return false;
     }
 
-    ppr = cr.get_int(m, ppr_key, -1);
+    ppr = cr.get_int(m, ppr_key, 100);
     if(ppr <= 0) {
         printf("ERROR: configure-mpg %s: ppr cannot be less than zero\n", name.c_str());
         return false;
     }
 
-    // see if a default mm per puklse is defined
+    // see if a default mm per pulse is defined
     mm_per_pulse = cr.get_float(m, mmpp_key, -1);
     if(mm_per_pulse <= 0) {
         // calculate the default by using the minimum resolution of the axis to 4 dp
@@ -103,7 +100,7 @@ bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std:
     pin1 = new Pin(cr.get_string(m, enca_pin_key , "nc"));
     pin2 = new Pin(cr.get_string(m, encb_pin_key , "nc"));
 
-    enc = new RotaryEncoder(*pin1, *pin2, std::bind(&MPG::handle_change, this));
+    enc = new RotaryEncoder(*pin1, *pin2, std::bind(&MPG::check_encoder, this));
     if(!enc->setup()) {
         printf("ERROR: configure-mpg %s: enca and/or encb pins are not valid interrupt pins\n", name.c_str());
         delete pin1;
@@ -112,9 +109,8 @@ bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std:
         return false;
     }
 
-    // setup task to handle encoder changes
-    xBinarySemaphore = xSemaphoreCreateBinary();
-    xTaskCreate(vHandlerTask, "EncoderHandler", 512, this, 3, NULL);
+    last_count = enc->get_count();
+    delta_change.store(0);
 
     // set this so the command ctx call back gets called
     want_command_ctx = true;
@@ -142,53 +138,37 @@ void MPG::in_command_ctx(bool idle)
     Robot::getInstance()->delta_move(delta, fr, n_motors);
 }
 
-void MPG::vHandlerTask(void *instance)
-{
-    MPG *i = static_cast<MPG*>(instance);
-    i->check_encoder();
-}
-
+// interrupt handler
 void MPG::check_encoder()
 {
-    while(1) {
-        xSemaphoreTake(xBinarySemaphore, portMAX_DELAY);
+    uint32_t cnt = enc->get_count();
+    // handle wrap around
+    uint32_t qemax = 0XFFFFFFFF;
+    uint32_t delta = 0;
+    int sign = 1;
 
-        uint32_t cnt = enc->get_count();
-        // handle wrap around
-        uint32_t qemax = 0XFFFFFFFF;
-        uint32_t delta = 0;
-        int sign = 1;
+    // handle encoder wrap around and get encoder pulses since last read
+    if(cnt < last_count && (last_count - cnt) > (qemax / 2)) {
+        delta = (qemax - last_count) + cnt + 1;
+        sign = 1;
+    } else if(cnt > last_count && (cnt - last_count) > (qemax / 2)) {
+        delta = (qemax - cnt) + last_count + 1;
+        sign = -1;
+    } else if(cnt > last_count) {
+        delta = cnt - last_count;
+        sign = 1;
+    } else if(cnt < last_count) {
+        delta = last_count - cnt;
+        sign = -1;
+    }
+    last_count = cnt;
 
-        // handle encoder wrap around and get encoder pulses since last read
-        if(cnt < last_count && (last_count - cnt) > (qemax / 2)) {
-            delta = (qemax - last_count) + cnt + 1;
-            sign = 1;
-        } else if(cnt > last_count && (cnt - last_count) > (qemax / 2)) {
-            delta = (qemax - cnt) + last_count + 1;
-            sign = -1;
-        } else if(cnt > last_count) {
-            delta = cnt - last_count;
-            sign = 1;
-        } else if(cnt < last_count) {
-            delta = last_count - cnt;
-            sign = -1;
-        }
-        last_count = cnt;
+    int32_t d = sign * delta;
 
-        int32_t d = sign * delta;
-
-        if(d != 0) {
-            delta_change += d;
-        }
+    if(d != 0) {
+        delta_change.fetch_add(d);
     }
 }
-
-void MPG::handle_change()
-{
-    // the encoder was rotated, signal that the movement thread should run
-    xSemaphoreGiveFromISR(xBinarySemaphore, pdFALSE);
-}
-
 
 /*
     example config.ini entry:-
