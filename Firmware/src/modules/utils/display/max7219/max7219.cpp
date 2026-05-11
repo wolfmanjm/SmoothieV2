@@ -76,36 +76,36 @@ bool MAX7219::configure(ConfigReader& cr)
     // if displays are cascaded or need individual cs pins
     cascaded = cr.get_int(m, cascaded_key, 0);
     if(cascaded != 0 && cascaded < 2) {
-        printf("ERROR:config_max7219: cascaded must be 0 or >1\n");
+        printf("ERROR: config_max7219: cascaded must be 0 or >1\n");
         return false;
     }
 
     std::string clk_pin = cr.get_string(m, clk_pin_key, "nc");
     clk = new Pin(clk_pin.c_str(), Pin::AS_OUTPUT_OFF); // set low on creation
     if(!clk->connected()) {
-        printf("ERROR:config_max7219: spi clk pin %s is invalid\n", clk_pin.c_str());
+        printf("ERROR: config_max7219: spi clk pin %s is invalid\n", clk_pin.c_str());
         return false;
     }
-    printf("DEBUG:config_max7219: spi clk pin: %s\n", clk->to_string().c_str());
+    printf("DEBUG: config_max7219: spi clk pin: %s\n", clk->to_string().c_str());
 
     std::string mosi_pin = cr.get_string(m, mosi_pin_key, "nc");
     mosi = new Pin(mosi_pin.c_str(), Pin::AS_OUTPUT_OFF); // set low on creation
     if(!mosi->connected()) {
-        printf("ERROR:config_max7219: spi mosi pin %s is invalid\n", mosi_pin.c_str());
+        printf("ERROR: config_max7219: spi mosi pin %s is invalid\n", mosi_pin.c_str());
         return false;
     }
-    printf("DEBUG:config_max7219: spi mosi pin: %s\n", mosi->to_string().c_str());
+    printf("DEBUG: config_max7219: spi mosi pin: %s\n", mosi->to_string().c_str());
 
     if(cascaded != 0) {
         // just one cs pin for all displays
         std::string cs_pin = cr.get_string(m, cs_pin_key, "nc");
         Pin *cs = new Pin(cs_pin.c_str(), Pin::AS_OUTPUT_ON); // set high on creation
         if(!cs->connected()) {
-            printf("ERROR:config_max7219: cascaded mode requires a cs pin to be defined\n");
+            printf("ERROR: config_max7219: cascaded mode requires a cs pin to be defined\n");
             return false;
         }
         cs_list.push_back(cs);
-        printf("DEBUG:config_max7219: cascaded cs pin: %s\n", cs->to_string().c_str());
+        printf("DEBUG: config_max7219: cascaded cs pin: %s\n", cs->to_string().c_str());
     }
     return true;
 }
@@ -113,18 +113,18 @@ bool MAX7219::configure(ConfigReader& cr)
 int MAX7219::add_instance(const char *cs_pin)
 {
     if(cascaded > 0) {
-        printf("ERROR:max7219.add_instance(): cannot add_instance for cascaded displays\n");
+        printf("ERROR: max7219.add_instance(): cannot add_instance for cascaded displays\n");
         return -1;
     }
 
     Pin *cs = new Pin(cs_pin, Pin::AS_OUTPUT_ON); // set high on creation
     if(!cs->connected()) {
-        printf("ERROR:max7219.add_instance(): spi cs pin %s is invalid\n", cs_pin);
+        printf("ERROR: max7219.add_instance(): spi cs pin %s is invalid\n", cs_pin);
         return -1;
     }
     int id = cs_list.size();
     cs_list.push_back(cs);
-    printf("DEBUG:max7219.add_instance(): id %d, cs pin: %s\n", id, cs->to_string().c_str());
+    printf("DEBUG: max7219.add_instance(): id %d, cs pin: %s\n", id, cs->to_string().c_str());
     return id;
 }
 
