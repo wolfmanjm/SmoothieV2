@@ -21,6 +21,7 @@ class MPG : public Module {
         bool configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std::string& name);
         bool handle_cmd(std::string& params, OutputStream& os);
         void check_encoder();
+        bool set_ppmm(GCode& gcode, OutputStream& os);
 
         float mm_per_pulse;
         uint32_t ppr{100};

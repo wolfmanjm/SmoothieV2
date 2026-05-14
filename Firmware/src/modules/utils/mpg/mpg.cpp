@@ -115,6 +115,29 @@ bool MPG::configure(ConfigReader& cr, ConfigReader::section_map_t& m, const std:
     // set this so the command ctx call back gets called
     want_command_ctx = true;
 
+    // register gcodes and mcodes
+    using std::placeholders::_1;
+    using std::placeholders::_2;
+    Dispatcher::getInstance()->add_handler(Dispatcher::MCODE_HANDLER, 922, std::bind(&MPG::set_ppmm, this, _1, _2));
+
+    return true;
+}
+
+// set the distance to move per pulse via a M922 code
+bool MPG::set_ppmm(GCode& gcode, OutputStream& os)
+{
+    char a;
+    if(axis >= X_AXIS && axis <= Z_AXIS) {
+        a = 'X' + axis;
+    } else {
+        a = 'A' + axis - A_AXIS;
+    }
+
+    if(gcode.has_arg(a)) {
+        mm_per_pulse = gcode.get_arg(a); // distance in mm per pulse
+    }
+
+    os.printf("mm per pulse for axis %c = %f\n", a, mm_per_pulse);
     return true;
 }
 
