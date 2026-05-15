@@ -129,16 +129,19 @@ bool MPG::set_ppmm(GCode& gcode, OutputStream& os)
     char a;
     if(axis >= X_AXIS && axis <= Z_AXIS) {
         a = 'X' + axis;
-    } else {
+    } else if(axis >= A_AXIS && axis <= C_AXIS) {
         a = 'A' + axis - A_AXIS;
+    } else {
+        return false;
     }
 
     if(gcode.has_arg(a)) {
         mm_per_pulse = gcode.get_arg(a); // distance in mm per pulse
+        os.printf("mm per pulse for axis %c = %f\n", a, mm_per_pulse);
+        return true;
     }
 
-    os.printf("mm per pulse for axis %c = %f\n", a, mm_per_pulse);
-    return true;
+    return false;
 }
 
 // this gets called in command thread to issue the delta_move()
