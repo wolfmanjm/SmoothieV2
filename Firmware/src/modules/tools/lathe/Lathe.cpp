@@ -58,6 +58,8 @@ bool Lathe::configure(ConfigReader& cr)
         return false;
     }
 
+    index_minimum = 0; // no minimum pulse width
+
     // default is qe encoder
     ppr = 0;
     bool qeflg = cr.get_bool(m, qe_key, true);
@@ -76,7 +78,6 @@ bool Lathe::configure(ConfigReader& cr)
     // use index pin if we define one
     index_pin =  new Pin(cr.get_string(m, index_pin_key, "nc"));
     if(index_pin->connected()) {
-        index_minimum = 0; // no minimum pulse width
         std::string edge = cr.get_string(m, index_edge_key, "falling");
         Pin::INT_TYPE_T e;
         if(edge == "rising") e = Pin::RISING;
@@ -103,7 +104,7 @@ bool Lathe::configure(ConfigReader& cr)
             return false;
 
         }else{
-            printf("INFO: configure-lathe: using index pin: %s, with debounce %lu us, and minimum width %lu\n", index_pin->to_string().c_str(), index_debounce, index_minimum);
+            printf("INFO: configure-lathe: using index pin: %s %s, with debounce %lu us, and minimum width %lu\n", index_pin->to_string().c_str(), edge.c_str(), index_debounce, index_minimum);
         }
 
     } else {
@@ -328,7 +329,7 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
 extern "C" uint32_t get_microseconds();
 void Lathe::handle_index_irq()
 {
-    // TODO add minimum pulse width if needed (needs to interrupt on change)
+    // TODO add minimum pulse width if needed index_minimum > 0 (needs to interrupt on change)
     static uint32_t last_index_pulse_time = 0;
     // we need to debounce this, scope says the bounce is about 50us to 250us after the first one
     uint32_t deltaus = get_microseconds() - last_index_pulse_time;
@@ -340,8 +341,8 @@ void Lathe::handle_index_irq()
         uint32_t l = index_time.exchange(n);
         uint32_t d = (n >= l) ? n-l : 0xFFFFFFFF-(l-n)+1;
         index_time_delta.store(d);
+        last_index_pulse_time = get_microseconds();
     }
-    last_index_pulse_time = get_microseconds();
 }
 
 // called every 100 ms to calculate current RPM
