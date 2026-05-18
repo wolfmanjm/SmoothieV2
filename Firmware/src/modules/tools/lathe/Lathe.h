@@ -35,6 +35,7 @@ class Lathe : public Module {
         std::atomic_uint32_t index_time{0};
         std::atomic_uint32_t index_time_delta{0};
 
+        uint32_t index_minimum, index_debounce;
         uint8_t motor_id;
         bool current_direction;
         float delta_mm;

@@ -24,6 +24,11 @@
 #define enable_key "enable"
 #define ppr_key "encoder_ppr"
 #define index_pin_key "index_pin"
+#define index_edge_key "index_edge"
+#define index_debounce_key "index_debounce_us"
+#define index_minimum_key "index_minimum_us"
+#define qe_key "use_qe"
+#define qe_pullup_key "qe_pullup"
 
 REGISTER_MODULE(Lathe, Lathe::create)
 
@@ -53,32 +58,65 @@ bool Lathe::configure(ConfigReader& cr)
         return false;
     }
 
-    if(!setup_quadrature_encoder()) {
-        printf("ERROR: configure-lathe: unable to setup quadrature encoder\n");
-        return false;
+    // default is qe encoder
+    ppr = 0;
+    bool qeflg = cr.get_bool(m, qe_key, true);
+    if(qeflg) {
+        if(!setup_quadrature_encoder(cr.get_bool(m,  qe_pullup_key, false))) {
+            printf("ERROR: configure-lathe: unable to setup quadrature encoder\n");
+            return false;
+        }
+        // pulses per rotation (takes into consideration any gearing) ppr= encoder resolution * gear ratio
+        ppr = cr.get_float(m, ppr_key, 1000);
+        printf("INFO: configure-lathe: encoder ppr %f\n", ppr);
+    } else {
+        printf("INFO: configure-lathe: No H/W quadrature encoder\n");
     }
 
     // use index pin if we define one
     index_pin =  new Pin(cr.get_string(m, index_pin_key, "nc"));
     if(index_pin->connected()) {
-        index_pin->as_interrupt(std::bind(&Lathe::handle_index_irq, this), Pin::FALLING);
+        index_minimum = 0; // no minimum pulse width
+        std::string edge = cr.get_string(m, index_edge_key, "falling");
+        Pin::INT_TYPE_T e;
+        if(edge == "rising") e = Pin::RISING;
+        else if(edge == "falling") e = Pin::FALLING;
+        else if(edge == "both") {
+            e = Pin::CHANGE;
+            // mimimum time of index pulse otherwise rejected in us
+            index_minimum = cr.get_int(m, index_minimum_key, 0);
+        }
+        else {
+            printf("ERROR: configure-lathe: index interrupt edge must be one of rising, falling, both: %s\n", edge.c_str());
+            delete index_pin;
+            return false;
+        }
+
+        // mimimum time between index pulses, in us, otherwise it will be rejected
+        index_debounce = cr.get_int(m, index_debounce_key, 300);
+
+        index_pin->as_interrupt(std::bind(&Lathe::handle_index_irq, this), e);
         if(!index_pin->connected()) {
             printf("ERROR: configure-lathe: Cannot set index pin to interrupt %s\n", index_pin->to_string().c_str());
             delete index_pin;
             index_pin = nullptr;
+            return false;
+
         }else{
-            printf("INFO: configure-lathe: using index pin: %s\n", index_pin->to_string().c_str());
+            printf("INFO: configure-lathe: using index pin: %s, with debounce %lu us, and minimum width %lu\n", index_pin->to_string().c_str(), index_debounce, index_minimum);
         }
 
     } else {
         delete index_pin;
         index_pin = nullptr;
         printf("INFO: configure-lathe: no index pin\n");
+
+        if(!qeflg) {
+            printf("ERROR: configure-lathe: At least one of qe and/or index pin must be set\n");
+            return false;
+        }
     }
 
-    // pulses per rotation (takes into consideration any gearing) ppr= encoder resolution * gear ratio
-    ppr = cr.get_float(m, ppr_key, 1000);
-    printf("INFO: configure-lathe: encoder ppr %f\n", ppr);
 
     // Actuator that is synchronized with the spindle
     // on a Lathe Z is the leadscrew for the carriage, X is the cross carriage
@@ -155,7 +193,8 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
 
             float distance = gcode.get_arg('Z'); // distance to move
 
-            if(gcode.get_subcode() == 1) {
+            // if we have a qe encoder
+            if(gcode.get_subcode() == 1 && ppr > 0) {
                 // G33.1 uses this spindle sync method like the ELS does it.
                 end_pos = stepper_motor->get_current_position() + distance;
 
@@ -245,8 +284,9 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
         } else if(gcode.has_arg('X') || gcode.has_arg('Y')) {
             gcode.set_error("Only (Lathe) Z axis currently supported");
 
-        } else if(gcode.get_subcode() == 1) {
-            // NOTE this may be removed as it is not standard but is usefull for testing by masnually turning the spindle
+        } else if(gcode.get_subcode() == 1 && ppr > 0) {
+            // REQUIRES a QE encoder
+            // NOTE this may be removed as it is not standard but is usefull for testing by manually turning the spindle
             // plus it is more like the ELS way to do it.
             // no Z arg means manual mode where the half nut must be engaged and disengaged, control Y will stop it
             // K sets the mm per revolution
@@ -275,7 +315,7 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
             Robot::getInstance()->reset_position_from_current_actuator_position();
 
         } else {
-            gcode.set_error("Z axis required");
+            gcode.set_error("Z axis required or encoder required");
         }
 
         return true;
@@ -288,10 +328,11 @@ bool Lathe::handle_gcode(GCode& gcode, OutputStream& os)
 extern "C" uint32_t get_microseconds();
 void Lathe::handle_index_irq()
 {
+    // TODO add minimum pulse width if needed (needs to interrupt on change)
     static uint32_t last_index_pulse_time = 0;
     // we need to debounce this, scope says the bounce is about 50us to 250us after the first one
     uint32_t deltaus = get_microseconds() - last_index_pulse_time;
-    if(deltaus > 300) {
+    if(deltaus > index_debounce) {
         // count index pulses
         index_pulse++;
         // save time of index pulse and measure time between the pulses
@@ -337,7 +378,7 @@ void Lathe::handle_rpm()
             lastcnt = cnt;
         }
 
-    } else {
+    } else if(ppr > 0) {
 
         if(lasttime == 0)  {
             lasttime = get_microseconds();

@@ -21,6 +21,8 @@
 #define QE_CH2_GPIO_AF        GPIO_AF3_TIM8
 #define QE_CH2_CLK_ENABLE     __HAL_RCC_GPIOJ_CLK_ENABLE
 
+static bool use_pullup=false;
+
 /**
 * @brief TIM_Encoder MSP Initialization
 * This function configures the hardware resources used in this example
@@ -44,7 +46,7 @@ void HAL_TIM_Encoder_MspInit(TIM_HandleTypeDef* htim_encoder)
         GPIO_InitStruct.Pin = QE_CH1_GPIO_PIN | QE_CH2_GPIO_PIN;
         GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
         GPIO_InitStruct.Alternate = QE_CH1_GPIO_AF;
-        GPIO_InitStruct.Pull = GPIO_PULLUP;
+        GPIO_InitStruct.Pull = use_pullup ? GPIO_PULLUP : GPIO_NOPULL;
         GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
         HAL_GPIO_Init(QE_CH1_GPIO_PORT, &GPIO_InitStruct);
 
@@ -107,8 +109,10 @@ static bool MX_QE_TIM_Init(void)
     return true;
 }
 
-bool setup_quadrature_encoder()
+bool setup_quadrature_encoder(bool pullup)
 {
+    use_pullup = pullup;
+
     if(!MX_QE_TIM_Init()) {
         printf("ERROR: QuadEncoder - unable to setup quadrature timer\n");
         return false;
