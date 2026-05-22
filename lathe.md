@@ -1,11 +1,20 @@
 # Lathe Mode
-_(This presumes the lathe has been fitted with a rotary encoder hooked up to the spindle, generally a 1024 to 2000 PPR resolution encoder is required, and/or an index pulse which triggers once per revolution)_
+
+The best setup for basic lathe g codes is a simple index pulse once every
+revolution, this can be done with a magnetic sensor or opticla sensor on the
+head. However if ELS functionality is required that works somehwat like the
+Clough47 ELS then an optical encoder with at least 1000PPR is required
+(an index pulse is also usefull and the Omron encoders provide both).
+
+(This writeup presumes the lathe has been fitted with a rotary encoder hooked
+ up to the spindle, generally a 1024 to 2000 PPR resolution encoder is
+ required, and/or an index pulse which triggers once per revolution).
 
 This module adds the G33 Knnn gcode which will move the lathe Z axis in sync
 with the spindle/chuck, the K parameter is the mm per revolution the Z axis
 should move. Standard operation will also require a Znnn parameter which will
 specify how far the Z axis should move in sync with the spindle. Optionally
-one can issue (a on-standard) G33.1 and omit the Z parameter, in this case
+one can issue (a non-standard) G33.1 and omit the Z parameter, in this case
 the Z axis will move until told to stop (issuing a control Y will do this).
 
 If an index pin has been defined then the Z will start moving when the index

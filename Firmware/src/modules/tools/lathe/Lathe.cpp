@@ -370,7 +370,7 @@ void Lathe::handle_rpm()
         uint32_t cnt = index_pulse.load();
         if(lastcnt == cnt) {
             uint32_t deltams = (get_microseconds() - lasttime) / 1000;
-            if(deltams > 1000) {
+            if(deltams > 2000) { // 2 seconds is a reasonable amount of time that would be an RPM of 30
                 rpm = 0;
                 index_time_delta.store(0);
             }
