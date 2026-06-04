@@ -24,8 +24,8 @@ class MPG : public Module {
         bool set_ppmm(GCode& gcode, OutputStream& os);
 
         float mm_per_pulse;
-        uint32_t ppr{100};
         uint8_t axis;
+        bool shared;
         RotaryEncoder *enc;
         volatile uint32_t last_count{0};
         std::atomic_int32_t delta_change;
