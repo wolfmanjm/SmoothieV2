@@ -304,11 +304,13 @@ bool process_command_buffer(size_t n, char *rx_buf, OutputStream *os, char *line
             auto st = StepTicker::getInstance();
             if(!Conveyor::getInstance()->is_idle() && !st->get_feed_hold()) {
                 st->set_feed_hold(true);
+                print_to_all_consoles("// action:feedhold\n"); // make upstream pause sending files
             }
         } else if(c == '~') { // instant resume/cycle start
             auto st = StepTicker::getInstance();
             if(st->get_feed_hold()) {
                 st->set_feed_hold(false);
+                print_to_all_consoles("// action:feedresume\n"); // make upstream resume sending files
             }
 
         } else if(c == '?') {
