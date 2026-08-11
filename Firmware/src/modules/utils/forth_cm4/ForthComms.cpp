@@ -203,7 +203,7 @@ bool ForthComms::produce(char *rbuf, size_t len)
 }
 
 // TODO add command line editing and send line instead of character at a time
-// also maybe stop character echo although the forth ketnel could be hacked to do that
+// also maybe stop character echo although the forth kernel could be hacked to do that
 bool ForthComms::terminal( std::string& params, OutputStream& os )
 {
     os.set_no_response();
