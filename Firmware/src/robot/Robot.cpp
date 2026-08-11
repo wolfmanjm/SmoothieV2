@@ -2021,12 +2021,11 @@ bool Robot::append_milestone(const float target[], float rate_mm_s)
     }
 
     // if we are in feed hold wait here until it is released, this means that even segmented lines will pause
-    // TODO implement feed hold
-    // while(THEKERNEL->get_feed_hold()) {
-    //     safe_sleep(100);
-    //     // if we also got a HALT then break out of this
-    //     if(halted) return false;
-    // }
+    while(StepTicker::getInstance()->get_feed_hold()) {
+        safe_sleep(100);
+        // if we also got a HALT then break out of this
+        if(halted) return false;
+    }
 
     // make sure the motors are enabled
     enable_all_motors(true);
@@ -2365,7 +2364,7 @@ void Robot::get_query_string(std::string & str) const
 {
     bool homing = false;
     bool running = false;
-    bool feed_hold = false;
+    bool feed_hold = StepTicker::getInstance()->get_feed_hold();
 
     // see if we are homing
     Module *m = Module::lookup("endstops");
@@ -2390,7 +2389,7 @@ void Robot::get_query_string(std::string & str) const
         str.append("Run");
     }
 
-    if(running) {
+    if(running || feed_hold) {
         float mpos[3];
         get_current_machine_position(mpos);
         // current_position/mpos includes the compensation transform so we need to get the inverse to get actual position

@@ -7,8 +7,8 @@
 
 #include "stm32h7xx.h" // for HAL_Delay()
 
-extern "C" uint32_t get_microseconds();
-extern "C" uint32_t microsecond_init();
+#include "tmr-setup.h"
+
 REGISTER_TEST(MicroSecondCounter, test_it_is_1us)
 {
     microsecond_init();
@@ -22,5 +22,8 @@ REGISTER_TEST(MicroSecondCounter, test_it_is_1us)
     HAL_Delay(2000);
     uint32_t dt = get_microseconds() - st;
     printf("time 2 seconds: %lu us\n", dt);
+    TEST_ASSERT_INT_WITHIN(500, dt, 2000000);
+
+    dt = get_delta_microsconds(st);
     TEST_ASSERT_INT_WITHIN(500, dt, 2000000);
 }

@@ -14,6 +14,7 @@
 #include "OutputStream.h"
 #include "Pin.h"
 #include "Conveyor.h"
+#include "tmr-setup.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -332,7 +333,8 @@ void Lathe::handle_index_irq()
     // TODO add minimum pulse width if needed index_minimum > 0 (needs to interrupt on change)
     static uint32_t last_index_pulse_time = 0;
     // we need to debounce this, scope says the bounce is about 50us to 250us after the first one
-    uint32_t deltaus = get_microseconds() - last_index_pulse_time;
+    uint32_t deltaus = get_delta_microseconds(last_index_pulse_time);
+
     if(deltaus > index_debounce) {
         // count index pulses
         index_pulse++;
@@ -369,7 +371,7 @@ void Lathe::handle_rpm()
         // if the index does not increase within a certain time then determine the spindle has stopped
         uint32_t cnt = index_pulse.load();
         if(lastcnt == cnt) {
-            uint32_t deltams = (get_microseconds() - lasttime) / 1000;
+            uint32_t deltams = get_delta_microseconds(lasttime) / 1000;
             if(deltams > 2000) { // 2 seconds is a reasonable amount of time that would be an RPM of 30
                 rpm = 0;
                 index_time_delta.store(0);
@@ -388,7 +390,7 @@ void Lathe::handle_rpm()
 
         // use encoder to calculate RPM
         // get elapsed time since last call, more accurate than relying on 100ms timer
-        uint32_t deltaus = get_microseconds() - lasttime;
+        uint32_t deltaus = get_delta_microseconds(lasttime);
         lasttime = get_microseconds();
         rpm = handle_rpm_encoder(deltaus/1000);
     }

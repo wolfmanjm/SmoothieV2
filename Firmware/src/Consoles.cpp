@@ -29,6 +29,7 @@
 #include "StringUtils.h"
 #include "uart_debug.h"
 #include "leds.h"
+#include "StepTicker.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -296,6 +297,18 @@ bool process_command_buffer(size_t n, char *rx_buf, OutputStream *os, char *line
 
             } else {
                 os->set_stop_request(true);
+            }
+
+
+        } else if(c == '!') { // instant pause/feed hold
+            auto st = StepTicker::getInstance();
+            if(!Conveyor::getInstance()->is_idle() && !st->get_feed_hold()) {
+                st->set_feed_hold(true);
+            }
+        } else if(c == '~') { // instant resume/cycle start
+            auto st = StepTicker::getInstance();
+            if(st->get_feed_hold()) {
+                st->set_feed_hold(false);
             }
 
         } else if(c == '?') {
