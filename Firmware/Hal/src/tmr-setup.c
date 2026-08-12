@@ -121,7 +121,13 @@ void steptimer_change_frequency(uint32_t freq)
 	// NB the minimum frequency for 20MHz is 306Hz as the ARR is 16bit for TIM3
 	uint32_t per = STEP_TIM_TIMERFREQ / freq;
 	if(per > 0xFFFF) per = 0xFFFF;
-	__HAL_TIM_SET_AUTORELOAD(&StepTimHandle, per);
+	__HAL_TIM_SET_AUTORELOAD(&StepTimHandle, per-1);
+}
+
+uint32_t steptimer_get_frequency()
+{
+	uint32_t arr = __HAL_TIM_GET_AUTORELOAD(&StepTimHandle);
+	return STEP_TIM_TIMERFREQ / (arr+1);
 }
 
 /**

@@ -23,6 +23,7 @@
 #include "Uart.h"
 #include "LineEditor.h"
 #include "MessageQueue.h"
+#include "tmr-setup.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -1488,7 +1489,9 @@ bool CommandShell::version_cmd(std::string& params, OutputStream& os)
     Version vers;
 
     os.printf("%s on %s. board_id: %02X\n", get_mcu().c_str(), BUILD_TARGET, board_id);
-    os.printf("Build version: %s, Build date: %s, System Clock: %ldMHz\r\n", vers.get_build(), vers.get_build_date(), SystemCoreClock / 1000000);
+    os.printf("Build version: %s, Build date: %s, System Clock: %ldMHz, Step Frequency: %1.2fKHz\n",
+        vers.get_build(), vers.get_build_date(), SystemCoreClock / 1000000, steptimer_get_frequency()/1000.0F);
+
     os.printf("%d axis, %d primary axis\n", MAX_ROBOT_ACTUATORS, N_PRIMARY_AXIS);
 
     os.set_no_response();

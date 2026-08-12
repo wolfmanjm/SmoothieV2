@@ -8,6 +8,7 @@ int steptimer_setup(uint32_t frequency, uint32_t delay, void *mr0handler, void *
 void unsteptimer_start();
 void steptimer_stop();
 void steptimer_change_frequency(uint32_t frequency);
+uint32_t steptimer_get_frequency();
 
 // setup where frequency is in Hz
 int fasttick_setup(uint32_t frequency, void *timer_handler);
