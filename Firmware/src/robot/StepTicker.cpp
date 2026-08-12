@@ -206,7 +206,8 @@ _ramfunc_  void StepTicker::step_tick (void)
         case 1: { // initial feed hold
             // calculate the slope needed, uses default acceleration and current feed rate as a guestimate
             float acc = Robot::getInstance()->get_default_acceleration(); // mm/sec²
-            float fr = Robot::getInstance()->get_feed_rate() / 60; // mm/sec
+            float fr = Conveyor::getInstance()->get_current_feedrate();   // mm/sec
+            if(fr == 0) fr = Robot::getInstance()->get_feed_rate() / 60;
             float time = fr * 1e3 / acc; // time this will take to stop in milliseconds
             // we reduce the timer frequency every 1 millisecond to get a smooth deceleration
             // calculate the number of 1ms time intervals we have to reduce it to the target frequency of 1KHz
