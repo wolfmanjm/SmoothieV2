@@ -11,6 +11,7 @@
 #include "main.h"
 #include "MessageQueue.h"
 #include "Consoles.h"
+#include "StepTicker.h"
 
 #include "FreeRTOS.h"
 #include "task.h"
@@ -498,6 +499,13 @@ void Player::player_thread()
         while(!playing_file && !abort_thread && !Module::is_halted()) {
             // we must be paused
             vTaskDelay(pdMS_TO_TICKS(200)); // sleep and yield
+        }
+
+        // if we are in feed hold wait here until it is released
+        while(StepTicker::getInstance()->get_feed_hold()) {
+            vTaskDelay(pdMS_TO_TICKS(200)); // sleep and yield
+            // if we also got a HALT then break out of this
+            if(Module::is_halted()) break;
         }
 
         // allows us to abort the thread
