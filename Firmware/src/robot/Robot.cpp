@@ -2021,11 +2021,11 @@ bool Robot::append_milestone(const float target[], float rate_mm_s)
     }
 
     // if we are in feed hold wait here until it is released, this means that even segmented lines will pause
-    while(StepTicker::getInstance()->get_feed_hold()) {
-        safe_sleep(100);
-        // if we also got a HALT then break out of this
-        if(halted) return false;
-    }
+    // while(StepTicker::getInstance()->get_feed_hold()) {
+    //     safe_sleep(100);
+    //     // if we also got a HALT then break out of this
+    //     if(halted) return false;
+    // }
 
     // make sure the motors are enabled
     enable_all_motors(true);

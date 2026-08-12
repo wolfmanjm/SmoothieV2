@@ -33,6 +33,7 @@ public:
     void flush_queue(void);
     void force_queue() { check_queue(true); }
     bool set_continuous_mode(bool flg);
+    bool is_continuous_mode() const { return continuous_mode != 0; }
     void set_hold(bool f) { hold_queue= f; }
 
 
